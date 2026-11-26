@@ -15,7 +15,7 @@ jobs:
         id: v
         run: echo "versao=$(grep -oP 'VERSAO = "\K[0-9.]+' pc/core.py)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
