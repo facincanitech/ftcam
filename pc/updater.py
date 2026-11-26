@@ -47,11 +47,12 @@ def check():
     if ver(tag) <= ver(VERSAO):
         STATE["nova"] = None
         return None
+    STATE["nova"] = tag.lstrip("v")
     for a in rel.get("assets", []):
-        if a.get("name") == ASSET:
-            STATE["nova"] = tag.lstrip("v")
+        if a.get("name") == ASSET:   # versões antigas publicavam um zip separado
             return tag.lstrip("v"), a["browser_download_url"]
-    return None
+    # agora baixa o código da própria versão (o GitHub gera o zip sozinho)
+    return tag.lstrip("v"), rel["zipball_url"]
 
 
 def install(zip_url, dest=APP_DIR):
@@ -65,11 +66,10 @@ def install(zip_url, dest=APP_DIR):
             if z.testzip() is not None:
                 raise RuntimeError("zip corrompido")
             z.extractall(tmp / "x")
-        src = tmp / "x"
-        kids = [p for p in src.iterdir()]
-        if len(kids) == 1 and kids[0].is_dir():   # zip com a pasta FTCam/ dentro
-            src = kids[0]
-        if not (src / "app.py").exists() or not (src / "core.py").exists():
+        # acha a pasta do programa dentro do zip (FTCam/ no zip antigo, <repo>/pc/ no do GitHub)
+        src = next((p.parent for p in sorted((tmp / "x").rglob("app.py"), key=lambda q: len(q.parts))
+                    if (p.parent / "core.py").exists()), None)
+        if src is None:
             raise RuntimeError("pacote sem os arquivos do FTCam")
         old_req = (dest / "requirements.txt").read_text(encoding="utf-8") if (dest / "requirements.txt").exists() else ""
         for item in src.iterdir():

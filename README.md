@@ -12,7 +12,7 @@ acesso pela TV box e pelo celular. Sem nuvem e sem mensalidade.
 | `tv/` | App Android 10+ para **TV box** (controle remoto) e **celular**: assiste ao vivo, liga o som e vê as gravações do FTCam do computador. |
 
 ## Instalar
-1. Baixe o **FTCam.zip** na página de [Releases](https://github.com/facincanitech/ftcam/releases/latest), extraia e rode o `instalar.bat`.
+1. Baixe o **FTCam-Setup.exe** na página de [Releases](https://github.com/facincanitech/ftcam/releases/latest) e instale.
 2. Na TV box ou no celular, instale o **FTCamTV.apk** e coloque o endereço que aparece no programa do computador.
 
 ## Atualizações

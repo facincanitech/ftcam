@@ -59,7 +59,6 @@ jobs:
         run: |
           mkdir -p out
           cp tv/app/build/outputs/apk/release/app-release.apk out/FTCamTV.apk
-          cp -r pc FTCam && cp LICENSE FTCam/LICENCA.txt && zip -qr out/FTCam.zip FTCam
 
       - uses: actions/download-artifact@v4
         with:
@@ -79,6 +78,6 @@ jobs:
           if gh release view "v$V" >/dev/null 2>&1; then
             echo "v$V já publicada; pra lançar, aumente VERSAO em pc/core.py"
           else
-            gh release create "v$V" out/FTCam-Setup.exe out/FTCam.zip out/FTCamTV.apk --title "FTCam $V" \
-              --notes "Instalador do PC (FTCam-Setup.exe), programa em zip (FTCam.zip) e app da TV box/celular (FTCamTV.apk). Quem já tem o FTCam instalado recebe esta versão sozinho."
+            gh release create "v$V" out/FTCam-Setup.exe out/FTCamTV.apk --title "FTCam $V" \
+              --notes "Instalador do PC (FTCam-Setup.exe) e app da TV box/celular (FTCamTV.apk). Quem já tem o FTCam instalado recebe esta versão sozinho."
           fi
