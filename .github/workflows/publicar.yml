@@ -6,7 +6,26 @@ on:
 permissions:
   contents: write
 jobs:
+  instalador:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gerar FTCam-Setup.exe (Inno Setup)
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path pc/core.py -Pattern 'VERSAO = "([0-9.]+)"').Matches[0].Groups[1].Value
+          $env:FTCAM_VERSAO = $v
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc setup/ftcam.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: instalador
+          path: out/FTCam-Setup.exe
+
   publicar:
+    needs: instalador
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +61,11 @@ jobs:
           cp tv/app/build/outputs/apk/release/app-release.apk out/FTCamTV.apk
           cp -r pc FTCam && cp LICENSE FTCam/LICENCA.txt && zip -qr out/FTCam.zip FTCam
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: instalador
+          path: out
+
       - uses: actions/upload-artifact@v4
         with:
           name: FTCam-${{ steps.v.outputs.versao }}
@@ -55,6 +79,6 @@ jobs:
           if gh release view "v$V" >/dev/null 2>&1; then
             echo "v$V já publicada; pra lançar, aumente VERSAO em pc/core.py"
           else
-            gh release create "v$V" out/FTCam.zip out/FTCamTV.apk --title "FTCam $V" \
-              --notes "Programa do PC (FTCam.zip) e app da TV box/celular (FTCamTV.apk). Quem já tem o FTCam instalado recebe esta versão sozinho."
+            gh release create "v$V" out/FTCam-Setup.exe out/FTCam.zip out/FTCamTV.apk --title "FTCam $V" \
+              --notes "Instalador do PC (FTCam-Setup.exe), programa em zip (FTCam.zip) e app da TV box/celular (FTCamTV.apk). Quem já tem o FTCam instalado recebe esta versão sozinho."
           fi
