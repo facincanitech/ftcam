@@ -6,6 +6,7 @@ import android.app.UiModeManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.media.AudioManager;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
@@ -72,6 +73,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);   // botões de volume mexem no som do vídeo
         store = new Store(this);
         tv = ehTv();
 
@@ -255,6 +257,11 @@ public class MainActivity extends Activity {
             }
         }
         if (code == KeyEvent.KEYCODE_BACK) return true;
+        if (tv && (code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN
+                || code == KeyEvent.KEYCODE_VOLUME_MUTE || code == KeyEvent.KEYCODE_MUTE)) {
+            if (e.getAction() == KeyEvent.ACTION_DOWN) volume(code);
+            return true;
+        }
         // o OK do controle vira Enter pra página
         if (tv && (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
             KeyEvent enter = new KeyEvent(e.getDownTime(), e.getEventTime(), e.getAction(),
@@ -262,6 +269,48 @@ public class MainActivity extends Activity {
             return web.dispatchKeyEvent(enter);
         }
         return super.dispatchKeyEvent(e);
+    }
+
+    /**
+     * Volume pelo controle da TV box. Sobe primeiro o volume do aparelho; quando ele já está no
+     * máximo, sobe o amplificador do FTCam (até 300%). Pra baixar, faz o caminho de volta.
+     * Mudo liga/desliga o som da câmera. A página mostra o aviso com o volume.
+     */
+    private void volume(int code) {
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        if (code == KeyEvent.KEYCODE_VOLUME_MUTE || code == KeyEvent.KEYCODE_MUTE) {
+            web.evaluateJavascript("(function(){try{var id=S.sound;if(!id){var t=document.querySelectorAll('#grid > .tile')[S.layout==='1'?0:(S.tvSel||0)];"
+                    + "id=t&&t.id?t.id.replace('t-',''):null}if(id){toggleSound(id);toast(S.sound?'Som ligado':'Som desligado (mudo)','info')}"
+                    + "else toast('Escolha uma câmera pra ouvir','info')}catch(x){}})()", null);
+            return;
+        }
+        boolean up = code == KeyEvent.KEYCODE_VOLUME_UP;
+        if (up && cur < max) {
+            am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, 0);
+            avisoVolume(Math.round((cur + 1) * 100f / max));
+        } else if (!up) {
+            // baixa primeiro o amplificador do FTCam (se passou de 100%), depois o do aparelho
+            web.evaluateJavascript("(typeof volPct==='function'&&volPct()>100)?(setVol(volPct()-20),'amp'):'sys'", r -> {
+                if (r != null && r.contains("amp")) {
+                    web.evaluateJavascript("toast('Volume '+volPct()+'% (amplificado)','info')", null);
+                } else if (cur > 0) {
+                    am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, 0);
+                    avisoVolume(Math.round((cur - 1) * 100f / max));
+                } else {
+                    avisoVolume(0);
+                }
+            });
+        } else {
+            // aparelho no máximo: amplifica no FTCam
+            web.evaluateJavascript("typeof volPct==='function'&&(setVol(Math.min(300,volPct()+20)),toast('Volume '+volPct()+'% (amplificado)','info'))", null);
+        }
+    }
+
+    private void avisoVolume(int pct) {
+        web.evaluateJavascript("typeof toast==='function'&&toast('" + (pct == 0 ? "Volume 0% (mudo)" : "Volume " + pct + "%")
+                + "'+(S.sound?'':' · aperte OK numa câmera pra ouvir'),'info')", null);
     }
 
     @Override
