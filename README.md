@@ -23,4 +23,6 @@ O app da TV/celular mostra a tela do computador, então acompanha as novidades j
 Código aberto **para consulta**: uso livre e gratuito, mas **sem permissão para modificar,
 redistribuir ou vender**. Veja [LICENSE](LICENSE).
 
+Contato: facincanitech@gmail.com
+
 © 2026 FacincaniTech
