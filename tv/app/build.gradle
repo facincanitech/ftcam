@@ -37,7 +37,9 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true          // R8: tira código e nomes sem uso, APK menor
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig ks.exists() ? signingConfigs.fixa : signingConfigs.debug
         }
     }
