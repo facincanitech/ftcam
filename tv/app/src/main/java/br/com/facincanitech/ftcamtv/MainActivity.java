@@ -44,9 +44,14 @@ public class MainActivity extends Activity {
     private TextView aviso;
     private boolean tv;
     private int falhas = 0;
+    private int senhaTentativas = 0;
     private boolean procurando = false;
     private long ultimoVoltar = 0;
     private String carregado = "";
+    /** a última carga deu erro (não deixa o onPageFinished esconder o aviso) */
+    private boolean erroNaCarga = false;
+    /** o FTCam pediu senha e a nossa está vazia/errada: para de tentar até o usuário arrumar */
+    private boolean precisaSenha = false;
 
     private final Runnable recarregar = this::carregar;
 
@@ -84,9 +89,10 @@ public class MainActivity extends Activity {
         web.setWebChromeClient(new WebChromeClient());
         web.setWebViewClient(new WebViewClient() {
             @Override public void onPageFinished(WebView v, String url) {
-                if (!url.startsWith("about:")) {
+                if (!url.startsWith("about:") && !erroNaCarga && !precisaSenha) {
                     aviso.setVisibility(View.GONE);
                     falhas = 0;
+                    senhaTentativas = 0;
                 }
             }
             @Override public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError err) {
@@ -98,12 +104,14 @@ public class MainActivity extends Activity {
                 if (android.os.Build.VERSION.SDK_INT < 23) falhou("Não achei o FTCam em " + store.endereco());
             }
             @Override public void onReceivedHttpAuthRequest(WebView v, HttpAuthHandler h, String host, String realm) {
-                if (!store.senha().isEmpty() && falhas < 2) {
-                    falhas++;
+                if (!store.senha().isEmpty() && senhaTentativas < 1) {
+                    senhaTentativas++;
                     h.proceed("ftcam", store.senha());
                 } else {
                     h.cancel();
-                    falhou("O FTCam pediu senha: coloque a senha do painel nos ajustes");
+                    pedirSenha(store.senha().isEmpty()
+                            ? "O FTCam do notebook tem senha."
+                            : "A senha salva no app está errada.");
                 }
             }
         });
@@ -133,12 +141,13 @@ public class MainActivity extends Activity {
     protected void onStart() {
         super.onStart();
         if (tv) hideSystemBars();
+        precisaSenha = false;   // voltou dos ajustes: tenta de novo com a senha nova
         if (store.endereco().isEmpty()) {
             startActivity(new Intent(this, SettingsActivity.class));
             mostrar(tv ? "Aperte Menu pra colocar o endereço do FTCam" : "Toque aqui pra colocar o endereço do FTCam");
             return;
         }
-        if (!store.url(tv).equals(carregado)) carregar();
+        if (!store.url(tv).equals(carregado) || erroNaCarga) carregar();
         ui.removeCallbacks(vigia);
         ui.postDelayed(vigia, 30000);
     }
@@ -157,6 +166,8 @@ public class MainActivity extends Activity {
         ui.removeCallbacks(recarregar);
         carregado = store.url(tv);
         if (carregado.isEmpty()) return;
+        erroNaCarga = false;
+        senhaTentativas = 0;
         mostrar("Conectando no FTCam…\n" + store.endereco());
         web.loadUrl(carregado);
         web.requestFocus();
@@ -164,6 +175,8 @@ public class MainActivity extends Activity {
 
     /** Não conectou: tenta de novo pra sempre; depois de algumas falhas, procura o notebook na rede. */
     private void falhou(String msg) {
+        if (precisaSenha) return;   // esperando a senha: não fica tentando e piscando
+        erroNaCarga = true;
         falhas++;
         mostrar(msg + "\n\nTentando de novo…");
         ui.removeCallbacks(recarregar);
@@ -183,6 +196,16 @@ public class MainActivity extends Activity {
                 });
             }).start();
         }
+    }
+
+    /** Para o laço de tentativas, deixa o aviso fixo e abre os ajustes pra colocar a senha. */
+    private void pedirSenha(String motivo) {
+        precisaSenha = true;
+        erroNaCarga = true;
+        ui.removeCallbacks(recarregar);
+        mostrar(motivo + "\n\n" + (tv ? "Aperte OK ou Menu pra colocar a senha do painel"
+                : "Toque aqui pra colocar a senha do painel"));
+        startActivity(new Intent(this, SettingsActivity.class));
     }
 
     private void mostrar(String msg) {
@@ -209,6 +232,13 @@ public class MainActivity extends Activity {
                 case KeyEvent.KEYCODE_INFO:
                     startActivity(new Intent(this, SettingsActivity.class));
                     return true;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    if (aviso.getVisibility() == View.VISIBLE) {
+                        startActivity(new Intent(this, SettingsActivity.class));
+                        return true;
+                    }
+                    break;
                 case KeyEvent.KEYCODE_BACK:
                     if (aviso.getVisibility() == View.VISIBLE) { sairComDoisVoltar(); return true; }
                     if (tv) {

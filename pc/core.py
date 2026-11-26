@@ -12,7 +12,7 @@ import time
 import uuid
 from pathlib import Path
 
-VERSAO = "1.1.7"
+VERSAO = "1.1.8"
 
 FROZEN = getattr(sys, "frozen", False)
 APP_DIR = Path(sys.executable).parent if FROZEN else Path(__file__).resolve().parent
