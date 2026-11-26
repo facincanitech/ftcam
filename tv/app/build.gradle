@@ -15,11 +15,33 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'br.com.facincanitech.ftcamtv'
-        minSdk 29          // Android 10
         targetSdk 34
         versionCode appVersionCode()
         versionName appVersion()
+    }
+
+    buildFeatures { buildConfig true }
+
+    // dois APKs separados, mesmo código:
+    //   tv      -> FTCamTV.apk      (TV box, Fire TV, controle remoto)
+    //   celular -> FTCam-Celular.apk (celular/tablet, toque)
+    // pacotes diferentes: os dois podem ficar instalados no mesmo aparelho
+    flavorDimensions 'tipo'
+    productFlavors {
+        tv {
+            dimension 'tipo'
+            applicationId 'br.com.facincanitech.ftcamtv'
+            minSdk 22          // Android 5.1: pega Fire TV Stick antigo (Fire OS 5) e TV box velha
+            resValue 'string', 'app_name', 'FTCam TV'
+            buildConfigField 'boolean', 'CELULAR', 'false'
+        }
+        celular {
+            dimension 'tipo'
+            applicationId 'br.com.facincanitech.ftcam'
+            minSdk 24          // Android 7.0
+            resValue 'string', 'app_name', 'FTCam'
+            buildConfigField 'boolean', 'CELULAR', 'true'
+        }
     }
 
     // a chave que assina o APK fica nos Secrets do GitHub (nunca no código).

@@ -34,7 +34,7 @@ import android.widget.Toast;
  *   OK          tela cheia com som / liga e desliga o som / assiste a gravação / pausa
  *   Voltar      volta (vídeo → lista → câmeras); na grade, 2x pra sair
  *   Menu / ⚙    ajustes do app (endereço do notebook, abrir ao ligar)
- * No celular/tablet abre o layout normal de toque do FTCam.
+ * No celular/tablet abre o layout normal de toque do FTCam (o FTCam-Celular.apk é sempre assim).
  */
 public class MainActivity extends Activity {
 
@@ -92,6 +92,11 @@ public class MainActivity extends Activity {
             @Override public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError err) {
                 if (req.isForMainFrame()) falhou("Não achei o FTCam em " + store.endereco());
             }
+            // Android 5.1 (Fire TV antigo) só chama esta versão
+            @SuppressWarnings("deprecation")
+            @Override public void onReceivedError(WebView v, int code, String desc, String url) {
+                if (android.os.Build.VERSION.SDK_INT < 23) falhou("Não achei o FTCam em " + store.endereco());
+            }
             @Override public void onReceivedHttpAuthRequest(WebView v, HttpAuthHandler h, String host, String realm) {
                 if (!store.senha().isEmpty() && falhas < 2) {
                     falhas++;
@@ -118,6 +123,7 @@ public class MainActivity extends Activity {
 
     /** TV box: modo TV do aparelho ou sem tela de toque. */
     private boolean ehTv() {
+        if (BuildConfig.CELULAR) return false;   // APK do celular: sempre layout de toque
         UiModeManager um = (UiModeManager) getSystemService(UI_MODE_SERVICE);
         if (um != null && um.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) return true;
         return !getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);

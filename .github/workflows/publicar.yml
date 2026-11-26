@@ -49,7 +49,7 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then echo "$KEYSTORE_B64" | base64 -d > tv/app/release.jks; echo "assinando com a chave oficial"
           else echo "::warning::sem KEYSTORE_B64 nos Secrets: APK assinado com chave de teste"; fi
 
-      - name: Compilar o app (TV/celular)
+      - name: Compilar os apps (TV e celular)
         working-directory: tv
         env:
           KEY_PASS: ${{ secrets.KEY_PASS }}
@@ -58,7 +58,8 @@ jobs:
       - name: Montar os pacotes
         run: |
           mkdir -p out
-          cp tv/app/build/outputs/apk/release/app-release.apk out/FTCamTV.apk
+          cp tv/app/build/outputs/apk/tv/release/app-tv-release.apk out/FTCamTV.apk
+          cp tv/app/build/outputs/apk/celular/release/app-celular-release.apk out/FTCam-Celular.apk
 
       - uses: actions/download-artifact@v4
         with:
@@ -78,6 +79,6 @@ jobs:
           if gh release view "v$V" >/dev/null 2>&1; then
             echo "v$V já publicada; pra lançar, aumente VERSAO em pc/core.py"
           else
-            gh release create "v$V" out/FTCam-Setup.exe out/FTCamTV.apk --title "FTCam $V" \
-              --notes "Instalador do PC (FTCam-Setup.exe) e app da TV box/celular (FTCamTV.apk). Quem já tem o FTCam instalado recebe esta versão sozinho."
+            gh release create "v$V" out/FTCam-Setup.exe out/FTCamTV.apk out/FTCam-Celular.apk --title "FTCam $V" \
+              --notes "Instalador do PC (FTCam-Setup.exe) e app da TV box/Fire TV (FTCamTV.apk, Android 5.1+) e app do celular (FTCam-Celular.apk, Android 7+). Quem já tem o FTCam instalado recebe esta versão sozinho."
           fi

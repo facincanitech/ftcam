@@ -37,8 +37,8 @@ public class SettingsActivity extends Activity {
         scroll.addView(col);
         setContentView(scroll);
 
-        col.addView(text("FTCam TV — ajustes", 26, true));
-        col.addView(text("Mostra na TV as câmeras do FTCam que roda no notebook, igual o navegador.", 14, false));
+        col.addView(text(BuildConfig.CELULAR ? "FTCam — ajustes" : "FTCam TV — ajustes", 26, true));
+        col.addView(text(BuildConfig.CELULAR ? "Mostra as câmeras do FTCam que roda no notebook, igual o navegador." : "Mostra na TV as câmeras do FTCam que roda no notebook, igual o navegador.", 14, false));
 
         col.addView(text("Endereço do FTCam no notebook", 18, true));
         endereco = field(col, store.endereco().isEmpty() ? "192.168.1.7:8080" : store.endereco(),
@@ -51,6 +51,7 @@ public class SettingsActivity extends Activity {
         col.addView(text("Senha do painel (só se colocou senha no FTCam)", 18, true));
         senha = field(col, store.senha(), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
 
+        if (!BuildConfig.CELULAR) {
         col.addView(text("Ao ligar a TV box", 18, true));
         CheckBox boot = new CheckBox(this);
         boot.setText("Abrir as câmeras sozinho quando a TV box ligar");
@@ -61,6 +62,7 @@ public class SettingsActivity extends Activity {
         col.addView(boot);
         col.addView(text("Algumas TV box com Android 10+ só deixam abrir sozinho com a permissão abaixo.", 13, false));
         col.addView(button("Dar permissão pra abrir sozinho", v -> pedirSobreposicao()));
+        }
 
         Button salvar = button("✓ Salvar e ver as câmeras", v -> salvar());
         col.addView(salvar);

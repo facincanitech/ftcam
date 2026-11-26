@@ -1,14 +1,12 @@
 package br.com.facincanitech.ftcamtv;
 
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.LinkAddress;
-import android.net.LinkProperties;
-import android.net.Network;
-
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Collections;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,17 +53,16 @@ public class Finder {
         }
     }
 
-    /** "192.168.1." da rede em que a TV box está. */
+    /** "192.168.1." da rede em que o aparelho está (funciona do Android 5.1 pra cima). */
     private static String subnet(Context ctx) {
         try {
-            ConnectivityManager cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
-            Network net = cm.getActiveNetwork();
-            LinkProperties lp = cm.getLinkProperties(net);
-            if (lp == null) return null;
-            for (LinkAddress a : lp.getLinkAddresses()) {
-                if (a.getAddress() instanceof Inet4Address) {
-                    String ip = a.getAddress().getHostAddress();
-                    return ip.substring(0, ip.lastIndexOf('.') + 1);
+            for (NetworkInterface ni : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                for (InetAddress a : Collections.list(ni.getInetAddresses())) {
+                    if (a instanceof Inet4Address && a.isSiteLocalAddress()) {
+                        String ip = a.getHostAddress();
+                        return ip.substring(0, ip.lastIndexOf('.') + 1);
+                    }
                 }
             }
         } catch (Exception ignored) { }
