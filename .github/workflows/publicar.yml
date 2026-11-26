@@ -1,0 +1,60 @@
+name: Publicar
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versão (vem do pc/core.py)
+        id: v
+        run: echo "versao=$(grep -oP 'VERSAO = "\K[0-9.]+' pc/core.py)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Chave que assina o APK (Secrets)
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then echo "$KEYSTORE_B64" | base64 -d > tv/app/release.jks; echo "assinando com a chave oficial"
+          else echo "::warning::sem KEYSTORE_B64 nos Secrets: APK assinado com chave de teste"; fi
+
+      - name: Compilar o app (TV/celular)
+        working-directory: tv
+        env:
+          KEY_PASS: ${{ secrets.KEY_PASS }}
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Montar os pacotes
+        run: |
+          mkdir -p out
+          cp tv/app/build/outputs/apk/release/app-release.apk out/FTCamTV.apk
+          cp -r pc FTCam && cp LICENSE FTCam/LICENCA.txt && zip -qr out/FTCam.zip FTCam
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FTCam-${{ steps.v.outputs.versao }}
+          path: out/*
+
+      - name: Publicar versão nova (só quando o número da versão muda)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.v.outputs.versao }}
+        run: |
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "v$V já publicada; pra lançar, aumente VERSAO em pc/core.py"
+          else
+            gh release create "v$V" out/FTCam.zip out/FTCamTV.apk --title "FTCam $V" \
+              --notes "Programa do PC (FTCam.zip) e app da TV box/celular (FTCamTV.apk). Quem já tem o FTCam instalado recebe esta versão sozinho."
+          fi

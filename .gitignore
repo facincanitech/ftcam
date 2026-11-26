@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+dados/
+gravacoes/
+pc/modelos/
+pc/ffmpeg/
+tv/.gradle/
+tv/build/
+tv/app/build/
+tv/app/release.jks
+tv/local.properties
+out/

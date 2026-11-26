@@ -1,0 +1,1254 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FTCam</title>
+<link rel="icon" href="/icone.png">
+<style>
+:root{
+  --bg:#0a0f16;--bg2:#101823;--card:#151f2c;--card2:#1b2737;--line:#243244;--txt:#e7eef6;--mut:#8b9bb0;
+  --acc:#4c8dff;--acc2:#3fa9f5;--ok:#2ecc71;--bad:#ff4d4f;--warn:#f5a524;--glass:rgba(16,24,35,.82);
+  --r:12px;--side:290px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:14px/1.4 "Segoe UI",system-ui,sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select{font:inherit;color:var(--txt);background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;outline:none}
+input:focus,select:focus{border-color:var(--acc)}
+svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.hidden{display:none!important}
+
+/* ---------- layout ---------- */
+#app{display:flex;height:100%}
+#side{width:var(--side);background:var(--bg2);border-right:1px solid var(--line);display:flex;flex-direction:column;transition:margin .25s}
+#side.closed{margin-left:calc(-1 * var(--side))}
+#main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+#stage{flex:1;position:relative;min-height:0}
+#grid{position:absolute;inset:0;display:grid;gap:3px;background:#05080c;padding:3px}
+
+/* ---------- side / alertas ---------- */
+.side-head{padding:64px 14px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+.side-head h3{margin:0;font-size:14px;flex:1;color:var(--mut);font-weight:600;letter-spacing:.3px}
+.icon-btn{background:transparent;border:0;border-radius:8px;padding:6px;display:inline-flex;color:var(--mut)}
+.icon-btn:hover{background:var(--card2);color:var(--txt)}
+.icon-btn.on{color:var(--acc)}
+#alertList{flex:1;overflow:auto;padding:6px 10px 90px}
+.day{display:flex;align-items:center;gap:6px;justify-content:center;color:var(--mut);font-size:12px;margin:14px 0 8px;position:sticky;top:0;background:var(--bg2);padding:4px 0;z-index:1}
+.al{display:flex;gap:10px;align-items:center;padding:7px;border-radius:10px;background:var(--card);border:1px solid transparent;margin-bottom:6px;cursor:pointer;position:relative}
+.al:hover{border-color:var(--line);background:var(--card2)}
+.al.sel{border-color:var(--acc)}
+.al img{width:78px;height:46px;object-fit:cover;border-radius:6px;background:#000}
+.al b{display:block;font-size:13px}
+.al small{color:var(--mut);font-size:12px}
+.tag{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;padding:1px 6px;border-radius:20px;background:rgba(76,141,255,.15);color:#9cc0ff;margin-top:2px}
+.tag.pessoa{background:rgba(255,77,79,.15);color:#ff9a9b}
+.tag.manual{background:rgba(245,165,36,.15);color:#ffd08a}
+.al input[type=checkbox]{position:absolute;right:8px;top:8px;display:none}
+.selecting .al input[type=checkbox]{display:block}
+.empty{color:var(--mut);text-align:center;padding:40px 10px;font-size:13px}
+
+/* ---------- tiles ---------- */
+.tile{position:relative;background:#0d141d;overflow:hidden;cursor:pointer;min-height:0}
+.tile img.live{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+.fill .tile img.live{object-fit:cover}
+.tile .off{display:none}
+.tile.offline .off{display:flex;background:#0d141d}
+.tile.offline img.live{visibility:hidden}
+.tile .lbl{position:absolute;right:8px;bottom:6px;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bad);display:inline-block}
+.dot.on{background:var(--ok)}
+.tile .clock{position:absolute;left:8px;top:6px;background:rgba(0,0,0,.45);padding:1px 6px;font-size:12px;font-variant-numeric:tabular-nums;border-radius:4px}
+.tile .rec{position:absolute;left:8px;bottom:7px;background:var(--bad);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;display:none;animation:blink 1.2s infinite}
+.tile.recording .rec{display:block}
+.tile.recording{outline:2px solid var(--bad);outline-offset:-2px}
+@keyframes blink{50%{opacity:.45}}
+.off{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mut);gap:6px}
+.off svg{width:34px;height:34px}
+.off small{font-size:11px;opacity:.7;max-width:80%;text-align:center}
+.add-tile{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--mut);border:2px dashed var(--line);background:transparent}
+.add-tile:hover{color:var(--txt);border-color:var(--acc)}
+
+/* foco numa câmera */
+#focusBar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:4px;z-index:5}
+.pill{background:var(--glass);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.07);border-radius:22px;display:flex;align-items:center;gap:2px;padding:5px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.pill .pb{background:transparent;border:0;border-radius:16px;padding:7px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:#c8d4e3}
+.pill .pb:hover{background:rgba(255,255,255,.08);color:#fff}
+.pill .pb.on{color:var(--acc)}
+.pill .pb.danger.on{color:var(--bad)}
+
+/* pílulas flutuantes */
+#tl{position:absolute;left:14px;top:12px;z-index:20}
+#tr{position:absolute;right:14px;top:12px;z-index:20}
+#qlay{right:0;left:auto;top:52px;width:auto;min-width:300px}
+#bl{position:fixed;left:10px;bottom:10px;z-index:20;width:calc(var(--side) - 20px)}
+#bl .pill{justify-content:space-around;background:rgba(16,24,35,.92)}
+#bl .pill .pb{flex:1;padding:7px 2px;min-width:0}
+#bl .pill .pb span{white-space:nowrap;font-size:10.5px}
+.brand{font-weight:800;letter-spacing:.5px;padding:0 10px 0 6px;display:flex;align-items:center;gap:8px}
+.brand img{width:22px;height:22px;border-radius:6px}
+.badge{position:absolute;top:2px;right:4px;background:var(--acc);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:0 5px;min-width:16px;text-align:center}
+.relative{position:relative}
+
+/* ---------- timeline ---------- */
+#timeline{height:0;overflow:hidden;background:var(--bg2);border-top:1px solid var(--line);transition:height .25s;display:flex;flex-direction:column}
+#timeline.open{height:210px}
+.tl-head{display:flex;align-items:center;gap:10px;padding:8px 14px 2px 14px;color:var(--mut);font-size:12px}
+.tl-head .sp{flex:1}
+.tl-axis{position:relative;height:22px;margin:0 14px 0 150px;border-bottom:1px solid var(--line)}
+.tl-axis span{position:absolute;transform:translateX(-50%);font-size:11px;color:var(--mut);top:3px}
+.tl-rows{flex:1;overflow:auto;padding-bottom:8px}
+.tl-row{display:flex;align-items:center;height:30px;border-bottom:1px solid rgba(255,255,255,.03)}
+.tl-row .n{width:150px;padding:0 14px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-track{flex:1;position:relative;height:16px;margin-right:14px;background:rgba(255,255,255,.025);border-radius:4px}
+.tl-ev{position:absolute;top:2px;height:12px;min-width:4px;border-radius:3px;background:var(--bad);cursor:pointer;opacity:.9}
+.tl-ev.movimento{background:#ff6b5b}.tl-ev.pessoa{background:#ff2e63}.tl-ev.manual{background:var(--warn)}
+.tl-ev:hover{opacity:1;outline:2px solid #fff}
+.tl-now{position:absolute;top:0;bottom:0;width:2px;background:var(--acc)}
+
+/* ---------- modais ---------- */
+.modal-bg{position:fixed;inset:0;background:rgba(3,6,10,.62);backdrop-filter:blur(3px);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:14px;width:min(860px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal.wide{width:min(1180px,100%)}
+.modal.small{width:min(520px,100%)}
+.mh{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.mh h2{margin:0;font-size:18px;flex:1}
+.mb{padding:18px 20px;overflow:auto}
+.mf{padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.btn{background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:8px 14px;display:inline-flex;align-items:center;gap:7px}
+.btn:hover{border-color:#36506e}
+a.btn{text-decoration:none;color:inherit}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.pri:hover{filter:brightness(1.1)}
+.btn.red{color:var(--bad);border-color:rgba(255,77,79,.4)}
+.btn.green{background:#1f7a3f;border-color:#1f7a3f;color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+.form{display:grid;grid-template-columns:200px 1fr;gap:12px 16px;align-items:center}
+.form label{color:var(--mut);text-align:right}
+.form .full{grid-column:1/-1}
+.hint{color:var(--mut);font-size:12px;margin-top:3px}
+.seg{display:inline-flex;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:3px;flex-wrap:wrap}
+.seg button{background:transparent;border:0;border-radius:7px;padding:6px 11px;color:var(--mut)}
+.seg button.on{background:var(--acc);color:#fff}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;display:inline-flex;gap:6px;align-items:center;color:#c8d4e3}
+.chip.on{border-color:var(--acc);background:rgba(76,141,255,.15);color:#fff}
+.switch{position:relative;width:40px;height:22px;display:inline-block}
+.switch input{display:none}
+.switch span{position:absolute;inset:0;background:var(--line);border-radius:22px;transition:.2s;cursor:pointer}
+.switch span:before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked+span{background:var(--acc)}
+.switch input:checked+span:before{transform:translateX(18px)}
+input[type=range]{padding:0;accent-color:var(--acc)}
+
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.cat{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px}
+.cat h4{margin:0 0 8px;font-size:13px;display:flex;gap:7px;align-items:center}
+.cat a{display:block;padding:6px 8px;border-radius:7px;color:#c8d4e3;cursor:pointer}
+.cat a:hover{background:var(--card2);color:#fff}
+
+.cams{display:grid;gap:8px}
+.camrow{display:flex;align-items:center;gap:12px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px}
+.camrow img,.camrow .ph{width:96px;height:54px;border-radius:7px;object-fit:cover;background:#000;flex:none}
+.camrow .info{flex:1;min-width:0}
+.camrow .info small{color:var(--mut);display:block}
+.err{color:#ff9a9b;font-size:12px}
+
+.sysbars{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.sb{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12px;display:flex;align-items:center;gap:7px}
+.sb .bar{width:60px;height:5px;background:var(--line);border-radius:4px;overflow:hidden}
+.sb .bar i{display:block;height:100%;background:var(--ok)}
+.sys-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:20px}
+.sys-grid h3{margin:0 0 10px;font-size:16px}
+.sys-grid .btn{width:100%;margin-bottom:7px;justify-content:flex-start}
+
+/* player */
+#player .mb{padding:0;background:#000;position:relative;display:flex;justify-content:center}
+#player video{max-width:100%;max-height:70vh;display:block}
+#player .ts{position:absolute;left:12px;top:10px;background:rgba(0,0,0,.5);padding:2px 8px;border-radius:5px;font-variant-numeric:tabular-nums}
+#player .nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:0;border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center}
+#player .nav.l{left:10px}#player .nav.r{right:10px}
+.pctl{display:flex;justify-content:center;padding:10px}
+.scrub{display:flex;align-items:center;gap:12px;padding:0 20px 14px;color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}
+.scrub input{flex:1}
+
+/* dropdowns / toasts */
+.drop{position:absolute;right:0;top:52px;width:340px;max-height:60vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.drop h4{margin:4px 6px 8px;font-size:13px;color:var(--mut);display:flex;justify-content:space-between;align-items:center}
+.nt{display:flex;gap:10px;padding:8px;border-radius:9px;cursor:pointer}
+.nt:hover{background:var(--card2)}
+.nt small{color:var(--mut)}
+.layouts{position:absolute;left:0;bottom:60px;width:auto}
+
+.tile .exitfs{display:none;position:absolute;right:12px;top:12px;z-index:3;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:8px 14px;font-size:13px}
+.tile:fullscreen .exitfs{display:block}
+.tile:fullscreen img.live{object-fit:contain}
+
+.tile .snd{position:absolute;right:8px;bottom:34px;background:rgba(0,0,0,.55);border:0;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;color:#fff;z-index:2;opacity:.85}
+.tile .snd.on{background:var(--acc);opacity:1}
+.tile .volr{position:absolute;right:48px;bottom:37px;display:none;align-items:center;gap:6px;background:rgba(0,0,0,.6);border-radius:16px;padding:4px 10px;z-index:2;color:#fff;font-size:11px}
+.tile.sndon .volr{display:flex}
+.tile .volr input{width:90px;accent-color:var(--acc)}
+#ctx .volrow{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:13px;color:#d6e0ec}
+#ctx .volrow input{flex:1;accent-color:var(--acc)}
+.empty-slot{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--mut);border:2px dashed var(--line);background:transparent;cursor:pointer;font-size:13px}
+.empty-slot:hover{color:var(--txt);border-color:var(--acc)}
+body.tv #tr,body.tv #tl,body.tv:not(.tvrec) #side,body.tv .snd,body.tv .volr,body.tv .exitfs{display:none!important}
+body.ver #cfgBtn,body.ver #camBtn,body.ver #sysBtn{display:none!important}
+body.tv .tile.tvsel{outline:4px solid var(--acc);outline-offset:-4px}
+body.tv .al.tvsel{outline:3px solid var(--acc);outline-offset:-3px;background:rgba(59,130,246,.15)}
+body.tv #side .sidehead button,body.tv #side input[type=checkbox]{display:none}
+.tile .aib{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:rgba(0,0,0,.6);border-radius:20px;padding:3px 11px;font-size:12px;display:none;gap:6px;align-items:center}
+.tile .aib.on{display:flex}
+.gridwrap{position:relative;user-select:none;background:#000;border-radius:10px;overflow:hidden}
+.gridwrap img{width:100%;display:block}
+.gridov{position:absolute;inset:0;display:grid;grid-template-columns:repeat(16,1fr);grid-template-rows:repeat(9,1fr);cursor:crosshair;touch-action:none}
+.gridov div{border:1px solid rgba(255,120,120,.25);background:rgba(255,77,79,.28)}
+.gridov div.on{background:rgba(76,141,255,.3);border-color:rgba(120,170,255,.55)}
+.faces{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.face{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+.face img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;background:#000}
+.face input{width:100%;margin-top:6px;padding:5px 7px;font-size:12px}
+.face .r{display:flex;gap:4px;margin-top:6px}.face .r .btn{flex:1;justify-content:center;padding:5px;font-size:12px}
+.face.sel{border-color:var(--acc)}
+.tag.rosto{background:rgba(46,204,113,.15);color:#8ff0b5}
+.tag.animal{background:rgba(46,204,113,.15);color:#8ff0b5}
+.tag.veículo{background:rgba(245,165,36,.15);color:#ffd08a}
+
+.tile video.hd{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:transparent;opacity:0}
+.tile video.hd.on{background:#000;opacity:1}
+.fill .tile video.hd{object-fit:cover}
+.tile.hdmode img.live{visibility:hidden}
+.tile canvas.ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#ctx .head{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 10px}
+#ctx .head b{flex:1;font-size:13px}
+#ctx .grp{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;color:#d6e0ec;font-size:13px}
+#ctx .grp:hover{background:var(--card2);color:#fff}
+#ctx .grp .ar{margin-left:auto;color:var(--mut);transition:transform .15s}
+#ctx .grp.open .ar{transform:rotate(90deg)}
+#ctx .sub{display:none;padding:2px 0 4px 26px}
+#ctx .grp.open+.sub{display:block}
+#ctx .sub .ci{padding:6px 10px}
+#ctx .sub .chips{padding:4px 10px 6px}
+#ctx .sub .chip{font-size:12px;padding:4px 8px}
+#ctx{position:fixed;z-index:95;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px;min-width:250px;max-height:calc(100vh - 16px);overflow:auto;box-shadow:0 14px 40px rgba(0,0,0,.5)}
+#ctx .ci{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;color:#d6e0ec;font-size:13px}
+#ctx .ci:hover{background:var(--card2);color:#fff}
+#ctx .ci .ck{margin-left:auto;color:var(--acc);font-weight:700}
+#ctx .sep{height:1px;background:var(--line);margin:5px 4px}
+#ctx .hd{padding:6px 10px 2px;color:var(--mut);font-size:11px;letter-spacing:.4px}
+.tile .res{position:absolute;left:8px;top:28px;background:rgba(0,0,0,.45);padding:0 6px;font-size:10.5px;border-radius:4px;color:#cfd9e6}
+#toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:90}
+.toast{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--bad);border-radius:10px;padding:10px 14px;min-width:260px;box-shadow:0 10px 30px rgba(0,0,0,.4);cursor:pointer;animation:slide .25s}
+.toast.info{border-left-color:var(--acc)}
+@keyframes slide{from{transform:translateY(20px);opacity:0}}
+.banner{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(255,77,79,.15);border:1px solid rgba(255,77,79,.4);color:#ffb3b4;border-radius:10px;padding:8px 14px;z-index:15;font-size:13px}
+.disc-list{display:grid;gap:8px;margin-top:12px}
+.spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sp 0.8s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.preview{width:100%;max-height:260px;object-fit:contain;background:#000;border-radius:10px;margin-top:8px}
+.tapo-ctl{display:flex;gap:8px;flex-wrap:wrap}
+/* ---------- celular: vídeo em cima, alertas embaixo ---------- */
+@media (max-width:800px){
+  html,body{overflow:hidden}
+  #app{flex-direction:column}
+  #main{order:1;flex:none}
+  #stage{height:min(56.25vw,48vh);min-height:190px}
+  #side,#side.closed{order:2;width:100%;margin-left:0;flex:1;min-height:0;border-right:0;border-top:1px solid var(--line)}
+  .side-head{padding:10px 12px 8px}
+  #alertList{padding:4px 10px 96px}
+  .al img{width:96px;height:56px}
+  #tl{left:8px;top:8px}#tr{right:8px;top:8px}
+  #tl .brand{padding:0 6px 0 4px;font-size:13px}#sideBtn{display:none}
+  .pill .pb{padding:6px 8px}
+  #bl{left:50%;transform:translateX(-50%);bottom:10px;width:auto}
+  #bl .pb span{display:none}
+  #bl .pill{padding:4px}
+  #tl .pill,#tr .pill,.pill{backdrop-filter:blur(8px)}
+  .tile .clock{font-size:10px}.tile .res{display:none}.tile .lbl{font-size:11px}
+  #focusBar{bottom:8px;max-width:calc(100% - 16px);overflow-x:auto}
+  #focusBar .pb span{display:none}
+  #timeline.open{height:170px}
+  .tl-axis{margin-left:90px}.tl-row .n{width:90px;padding:0 8px}
+  .modal-bg{padding:8px;align-items:flex-end}
+  .modal{max-height:94vh;border-radius:14px}
+  .mh{padding:12px 14px}.mh h2{font-size:16px}.mb{padding:14px}.mf{padding:10px 14px;flex-wrap:wrap}
+  .form{grid-template-columns:1fr;gap:6px 0}.form label{text-align:left;margin-top:6px}
+  #player video{max-height:45vh}
+  #player .mh{gap:6px}#player .mh h2{font-size:14px;line-height:1.25}#player .mh h2 small{display:block}
+  #player .mh .bt,#player .mtag{display:none}#player .mh .btn{padding:7px 9px}
+  .scrub{padding:0 12px 12px}
+  .drop{width:min(340px,calc(100vw - 16px))}
+  #toasts{left:8px;right:8px;bottom:70px}.toast{min-width:0}
+  .sys-grid{grid-template-columns:1fr}
+  .faces{grid-template-columns:repeat(auto-fill,minmax(105px,1fr))}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="side-head">
+      <h3 id="alertTitle">ALERTAS</h3>
+      <button class="icon-btn" title="Filtrar" onclick="openFilter()" id="fBtn"></button>
+      <button class="icon-btn" title="Selecionar" onclick="toggleSelect()" id="sBtn"></button>
+      <button class="icon-btn hidden" title="Apagar selecionados" onclick="deleteSelected()" id="dBtn"></button>
+    </div>
+    <div id="alertList"></div>
+  </aside>
+
+  <section id="main">
+    <div id="stage">
+      <div id="grid"></div>
+      <div id="focusBar" class="pill hidden"></div>
+      <div id="banner" class="banner hidden"></div>
+    </div>
+    <div id="timeline">
+      <div class="tl-head"><span id="tlTitle">Últimos 7 dias</span><span class="sp"></span>
+        <div class="seg" id="tlRange"></div></div>
+      <div class="tl-axis" id="tlAxis"></div>
+      <div class="tl-rows" id="tlRows"></div>
+    </div>
+  </section>
+</div>
+
+<div id="tl" class="pill">
+  <div class="brand"><img src="/icone.png" onerror="this.remove()">FTCam</div>
+  <button class="pb" title="Alertas" onclick="toggleSide()" id="sideBtn"></button>
+</div>
+
+<div id="tr">
+  <div class="pill">
+    <button class="pb" title="Ajustes" onclick="openSettings()" id="cfgBtn"></button>
+    <button class="pb" title="Câmeras" onclick="openCameras()" id="camBtn"></button>
+    <button class="pb" title="Grade de câmeras" onclick="event.stopPropagation();quickLayouts()" id="gridBtn"></button>
+    <button class="pb" title="Linha do tempo" onclick="toggleTimeline()" id="tlBtn"></button>
+    <button class="pb relative" title="Notificações" onclick="toggleNotif()" id="bellBtn"></button>
+    <button class="pb" title="Sistema" onclick="openSystem()" id="sysBtn"></button>
+  </div>
+  <div id="layoutDrop" class="drop hidden"></div>
+  <div id="notif" class="drop hidden"></div>
+  <div id="qlay" class="drop hidden" onclick="event.stopPropagation()"></div>
+</div>
+
+
+<div id="modal"></div>
+<div id="toasts"></div>
+
+<script>
+/* ================= ícones ================= */
+const P={
+ alert:'<path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18"/>',
+ chevL:'<path d="m15 18-6-6 6-6"/>',chevR:'<path d="m9 18 6-6-6-6"/>',
+ bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+ server:'<rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01M6 17h.01"/>',
+ sliders:'<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+ wrench:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>',
+ grid:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+ history:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/>',
+ filter:'<path d="M22 3H2l8 9.46V19l4 2v-8.54z"/>',check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+ trash:'<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+ power:'<path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/>',plus:'<path d="M12 5v14M5 12h14"/>',
+ x:'<path d="M18 6 6 18M6 6l12 12"/>',camera:'<path d="M23 7l-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
+ search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+ photo:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>',
+ siren:'<path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 1-1-1v-1a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1z"/><path d="M21 12h1M18.5 4.5 18 5M2 12h1M12 2v1M4.93 4.93l.71.71"/>',
+ eyeoff:'<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20"/>',
+ moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/>',led:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/>',
+ bolt:'<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',back:'<path d="M19 12H5M12 19l-7-7 7-7"/>',
+ play:'<path d="m6 3 14 9-14 9z"/>',pause:'<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
+ skipB:'<path d="m19 20-10-8 10-8zM5 19V5"/>',skipF:'<path d="m5 4 10 8-10 8zM19 5v14"/>',
+ rw:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',ff:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+ download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',folder:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+ user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',hand:'<path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+ paw:'<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/>',
+ vol:'<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+ mute:'<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m23 9-6 6M17 9l6 6"/>',
+ wifi:'<path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>',
+ hdd:'<path d="M22 12H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+ link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+ film:'<rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/>',
+};
+const ic=(n,s='')=>`<svg class="i" viewBox="0 0 24 24" ${s}>${P[n]||''}</svg>`;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api=async(u,o={})=>{const r=await fetch(u,{headers:{'Content-Type':'application/json'},...o,body:o.body&&JSON.stringify(o.body)});if(!r.ok&&r.status!==400)throw new Error(r.status);return r.json()};
+const fmtT=t=>new Date(t*1000).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const fmtD=t=>new Date(t*1000).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});
+const fmtDT=t=>new Date(t*1000).toLocaleString('pt-BR');
+const TIPO={movimento:['Movimento','camera'],pessoa:['Pessoa','user'],manual:['Manual','hand'],'veículo':['Veículo','camera'],animal:['Animal','paw'],'linha cruzada':['Linha','bolt'],'câmera obstruída':['Obstrução','eyeoff']};
+const tag=t=>{const [n,i]=TIPO[t]||[t,'camera'];return `<span class="tag ${esc(t)}">${ic(i,'style="width:11px;height:11px"')} ${esc(n)}</span>`};
+
+/* ================= estado ================= */
+const S={estado:null,config:null,alerts:[],focus:null,layout:localStorage.ftLayout||'auto',lastSeq:+localStorage.ftSeq||0,seenSeq:+localStorage.ftSeen||0,
+  filter:{camera:'',tipo:[],desde:null,ate:null},selecting:false,tlDays:7,playIdx:-1,camsKey:''};
+
+/* ================= init ================= */
+$('#fBtn').innerHTML=ic('filter');$('#sBtn').innerHTML=ic('check');$('#dBtn').innerHTML=ic('trash');
+$('#sideBtn').innerHTML=ic('chevL');$('#bellBtn').innerHTML=ic('bell')+'<span class="badge hidden" id="bellN"></span>';$('#sysBtn').innerHTML=ic('server');$('#gridBtn').innerHTML=ic('grid');
+$('#cfgBtn').innerHTML=ic('sliders');$('#camBtn').innerHTML=ic('wrench');$('#tlBtn').innerHTML=ic('history');
+$('#tlRange').innerHTML=[1,3,7,30].map(d=>`<button data-d="${d}" onclick="S.tlDays=${d};renderTimeline()">${d===1?'24h':d+' dias'}</button>`).join('');
+if(localStorage.ftSide==='0')toggleSide(true);
+if(localStorage.ftTl==='1')toggleTimeline(true);
+
+async function refresh(){
+  try{
+    const e=await api('/api/estado');S.estado=e;
+    if(S.clipSeq!==undefined&&e.clipes!==S.clipSeq)loadAlerts();S.clipSeq=e.clipes;
+    renderGrid();renderNotif();renderBanner();
+    const top=e.notificacoes[0];
+    if(top&&top.seq!==S.lastSeq){
+      if(S.lastSeq&&top.seq>S.lastSeq){e.notificacoes.filter(n=>n.seq>S.lastSeq).slice(0,3).forEach(n=>toast(`<b>${esc(n.camera)}</b><br><small>${TIPO[n.tipo]?.[0]||n.tipo} às ${fmtT(n.quando)}</small>`,'',()=>fullTile(n.camera_id)))}
+      S.lastSeq=top.seq;localStorage.ftSeq=top.seq;setTimeout(loadAlerts,(S.estado.cameras.length?1:0)*1500);
+    }
+  }catch(err){}
+}
+setInterval(refresh,2000);
+setInterval(loadAlerts,30000);
+setInterval(()=>document.querySelectorAll('.clock').forEach(c=>c.textContent=new Date().toLocaleString('pt-BR')),1000);
+refresh().then(loadAlerts);
+
+/* ================= grade ================= */
+function cols(n){if(S.layout!=='auto'){return +S.layout}return n<=1?1:n<=4?2:n<=9?3:4}
+/* quadros: cada quadro mostra a câmera que você escolher (guardado neste aparelho) */
+function slotStore(){try{return JSON.parse(localStorage.ftSlots||'{}')}catch(e){return{}}}
+function getSlots(n,cams){const st=slotStore(),ids=cams.map(c=>c.id);
+  let sl=(st[n]||[]).slice(0,n).map(x=>x===''?'':ids.includes(x)?x:null);while(sl.length<n)sl.push(null);
+  const used=new Set(sl.filter(Boolean)),free=ids.filter(i=>!used.has(i));
+  return sl.map(x=>x===null?(free.shift()||null):x)}
+function setSlot(i,id){const st=slotStore(),n=S.slotN;let sl=(S.slots||[]).slice();
+  if(id)sl=sl.map(x=>x===id?'':x);sl[i]=id||'';st[n]=sl;localStorage.ftSlots=JSON.stringify(st);closeCtx();renderGrid(true)}
+function renderGrid(force){
+  const cams=S.estado.cameras.filter(c=>c.ativa);
+  const g=$('#grid');
+  const n=S.layout==='auto'?Math.max(1,cams.length):(+S.layout)**2;
+  const slots=getSlots(n,cams);
+  const key=JSON.stringify([cams.map(c=>c.id),slots,S.layout]);
+  if(key!==S.camsKey||force){
+    S.camsKey=key;S.slots=slots;S.slotN=n;S.focus=null;
+    const c=cols(S.layout==='auto'?cams.length||1:n);
+    g.style.gridTemplateColumns=`repeat(${c},1fr)`;g.style.gridTemplateRows=`repeat(${Math.ceil(n/c)},1fr)`;
+    const auto0=!cams.length&&S.layout==='auto';
+    if(auto0){g.style.gridTemplateColumns='1fr';g.style.gridTemplateRows='1fr'}
+    g.innerHTML=!auto0?slots.map((id,i)=>{const cam=cams.find(x=>x.id===id);
+      if(!cam)return `<div class="tile empty-slot" onclick="slotMenu(event,${i})">${ic('plus','style="width:26px;height:26px"')}<span>Escolher câmera</span></div>`;
+      return `
+      <div class="tile ${cam.online?'':'offline'}" id="t-${cam.id}" onclick="slotMenu(event,${i})" ondblclick="event.stopPropagation();document.fullscreenElement?exitFull():fullTile('${cam.id}')" oncontextmenu="ctxMenu(event,'${cam.id}')">
+        <img class="live" data-id="${cam.id}"><canvas class="ov" data-id="${cam.id}"></canvas><span class="aib"></span>${cam.som!==false?`<button class="snd ${S.sound===cam.id?'on':''}" title="Ouvir som" onclick="event.stopPropagation();toggleSound('${cam.id}')">${ic(S.sound===cam.id?'vol':'mute')}</button><div class="volr" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()"><input type="range" min="0" max="300" step="5" value="${volPct()}" oninput="setVol(this.value)"><span class="vv">${volPct()}%</span></div>`:''}
+        <div class="off">${ic('power')}<span>Off</span><small class="offmsg">${esc(cam.erro||'Sem conexão com a câmera')}</small></div>
+        <span class="clock">${new Date().toLocaleString('pt-BR')}</span><span class="res"></span><button class="exitfs" onclick="event.stopPropagation();exitFull()">✕ Sair da tela cheia (Esc)</button><span class="rec">● REC</span>
+        <span class="lbl"><i class="dot ${cam.online?'on':''}"></i>${esc(cam.nome)}</span>
+      </div>`}).join(''):`<button class="tile add-tile" onclick="openCameras(true)">${ic('plus','style="width:34px;height:34px"')}Adicionar câmera</button>`;
+    renderFocusBar();markSound();
+    document.querySelectorAll('#grid img.live').forEach(startLive);
+    document.querySelectorAll('#grid canvas.ov').forEach(startBoxes);
+  }
+  cams.forEach(c=>{const t=document.getElementById('t-'+c.id);if(!t)return;
+    t.classList.toggle('recording',!!c.gravando_alerta);
+    const was=t.classList.contains('offline');t.classList.toggle('offline',!c.online);
+    const dot=t.querySelector('.lbl .dot');if(dot)dot.classList.toggle('on',!!c.online);
+    const nm=t.querySelector('.lbl');if(nm&&nm.lastChild&&nm.lastChild.nodeType===3&&nm.lastChild.textContent!==c.nome)nm.lastChild.textContent=c.nome;
+    const m=t.querySelector('.offmsg');if(m)m.textContent=c.erro||'Sem conexão com a câmera';
+    const hasHD=!!t.querySelector('video.hd');
+    // no Alto fica no Alto: não derruba o vídeo só porque um status veio sem o codec
+    const wantHD=c.qualidade==='alta'&&(hasHD||(!!c.hd_codec&&!(t._hdFail&&Date.now()-t._hdFail<5000)));
+    if(wantHD&&!t.querySelector('video.hd'))startHD(t,c.id);
+    if(!wantHD&&t.querySelector('video.hd'))stopHD(t);
+    const hv=t.querySelector('video.hd');
+    const r=t.querySelector('.res');if(r)r.textContent=c.online&&c.resolucao?(hv&&hv.videoWidth?`HD · ${hv.videoWidth}×${hv.videoHeight} · placa de vídeo`:`Leve · ${c.resolucao}${c.fps?` · ${c.fps} fps`:''}`):'';
+    const b=t.querySelector('.aib');if(b){const objs=c.objetos_agora||[];
+      const txt=objs.length?[...new Set(objs.map(o=>o.nome))].join(', '):(c.verificando?'IA verificando…':'');
+      b.textContent=txt?('🔍 '+txt):'';b.classList.toggle('on',!!txt)}});
+  document.getElementById('grid').classList.toggle('fill',localStorage.ftFill==='1');
+}
+/* ao vivo: baixa um quadro de cada vez e só troca quando o próximo já carregou (sem preto, sem piscar) */
+function startLive(img){
+  if(img._live)return;img._live=true;const id=img.dataset.id;let fails=0,seq=-1;
+  const tick=async()=>{
+    if(!document.body.contains(img))return;
+    const tile=img.closest('.tile');
+    if(tile&&tile.classList.contains('offline')){setTimeout(tick,1000);return}
+    if(document.hidden||window.__ftHidden){setTimeout(tick,2000);return}
+    if(tile&&tile.classList.contains('hdmode')){setTimeout(tick,1000);return}  // janela escondida/minimizada: não pede imagem
+    try{
+      // o servidor segura o pedido até sair um quadro novo: chega na hora, sem repetir quadro
+      const r=await fetch(`/api/foto/${id}?q=72&apos=${seq}&t=${Date.now()}`,{cache:'no-store'});
+      if(r.ok){seq=+(r.headers.get('X-Quadro')||seq);const u=URL.createObjectURL(await r.blob());
+        await new Promise(res=>{const pre=new Image();pre.onload=pre.onerror=res;pre.src=u});
+        const old=img.dataset.url;img.src=u;img.dataset.url=u;if(old)URL.revokeObjectURL(old);fails=0}
+      else fails++;
+    }catch(e){fails++}
+    setTimeout(tick,fails?Math.min(3000,300*fails):0);
+  };tick();
+}
+/* quadrados da IA por cima do ao vivo */
+const BOXCOL={pessoa:'#ff4d4f','veículo':'#f5a524',animal:'#2ecc71',pacote:'#4c8dff'};
+function startBoxes(cv){
+  if(cv._on)return;cv._on=true;const id=cv.dataset.id;
+  const loop=async()=>{
+    if(!document.body.contains(cv))return;
+    const c=(S.estado?.cameras||[]).find(x=>x.id===id);
+    const want=c&&c.online&&(c.ia_ao_vivo||c.gravando_alerta||c.verificando);
+    let d=null;
+    if(want){try{d=await api(`/api/cameras/${id}/deteccoes`)}catch(e){}}
+    drawBoxes(cv,d);
+    setTimeout(loop,want?400:1500);
+  };loop();
+}
+function drawBoxes(cv,d){
+  const hv=cv.parentNode.querySelector('video.hd');const img=(hv&&hv.videoWidth)?hv:cv.parentNode.querySelector('img.live');const W=cv.clientWidth,H=cv.clientHeight;
+  if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
+  const g=cv.getContext('2d');g.clearRect(0,0,W,H);
+  const nw=img&&(img.videoWidth||img.naturalWidth),nh=img&&(img.videoHeight||img.naturalHeight);
+  if(!d||!d.objetos||!d.objetos.length||!nw||!d.dim||!d.dim[0])return;
+  const fill=getComputedStyle(img).objectFit==='cover';
+  const s=(fill?Math.max:Math.min)(W/nw,H/nh);
+  const dw=nw*s,dh=nh*s,ox=(W-dw)/2,oy=(H-dh)/2;
+  const sx=dw/d.dim[0],sy=dh/d.dim[1];
+  g.lineWidth=2;g.font='600 12px Segoe UI, system-ui, sans-serif';
+  d.objetos.forEach(o=>{
+    const [x1,y1,x2,y2]=o.box,col=BOXCOL[o.tipo]||'#fff';
+    const x=ox+x1*sx,y=oy+y1*sy,w=(x2-x1)*sx,h=(y2-y1)*sy;
+    g.strokeStyle=col;g.strokeRect(x,y,w,h);
+    const t=`${o.nome} ${Math.round(o.conf*100)}%`,tw=g.measureText(t).width+8;
+    g.fillStyle=col;g.fillRect(x-1,Math.max(0,y-18),tw,18);g.fillStyle='#000';g.fillText(t,x+3,Math.max(13,y-5));
+  });
+}
+/* som ao vivo */
+function volPct(){const v=localStorage.ftVol;return v==null||v===''||isNaN(+v)?100:+v}
+function setVol(p){p=Math.max(0,Math.min(300,+p||0));localStorage.ftVol=p;if(S.gain)S.gain.gain.value=p/100;
+  document.querySelectorAll('.vv').forEach(e=>e.textContent=p+'%');document.querySelectorAll('.volr input,.volrow input').forEach(e=>{if(+e.value!==p)e.value=p})}
+function markSound(){document.querySelectorAll('.tile').forEach(t=>{const on=!!S.sound&&t.id==='t-'+S.sound;t.classList.toggle('sndon',on);
+  const b=t.querySelector('.snd');if(b){b.classList.toggle('on',on);b.innerHTML=ic(on?'vol':'mute')}})}
+function toggleSound(id){
+  if(S.audioEl){S.audioEl.onerror=S.audioEl.onended=null;S.audioEl.pause();S.audioEl.removeAttribute('src');S.audioEl.load();S.audioEl=null}
+  clearTimeout(S.audioRetryT);
+  if(S.sound===id){S.sound=null;S.audioTries=0}
+  else{S.sound=id;soundConnect(id)}
+  markSound();
+}
+function soundConnect(id){
+  if(S.audioEl){const o=S.audioEl;o.onerror=o.onended=null;o.pause();o.removeAttribute('src');o.load()}
+  const a=new Audio(`/api/audio/${id}?t=${Date.now()}`);a.preload='none';S.audioEl=a;
+  // passa pelo amplificador: o volume pode ir até 300%
+  try{if(!S.actx){S.actx=new (window.AudioContext||window.webkitAudioContext)();S.gain=S.actx.createGain();S.gain.connect(S.actx.destination)}
+    S.gain.gain.value=volPct()/100;if(S.actx.state==='suspended')S.actx.resume();S.actx.createMediaElementSource(a).connect(S.gain)}catch(e){}
+  // caiu (gravador reiniciou, som religando): reconecta sozinho, sem precisar apertar de novo
+  const retry=()=>{if(S.audioEl!==a||S.sound!==id)return;S.audioTries=(S.audioTries||0)+1;
+    if(S.audioTries>6){S.sound=null;S.audioTries=0;markSound();toast('A câmera não está mandando som agora — tente de novo daqui a pouco','info');return}
+    clearTimeout(S.audioRetryT);S.audioRetryT=setTimeout(()=>{if(S.sound===id)soundConnect(id)},3000)};
+  a.onerror=retry;a.onended=retry;
+  a.addEventListener('playing',()=>{S.audioTries=0},{once:true});
+  a.play().catch(e=>{if(e&&e.name==='NotAllowedError'){S.sound=null;markSound();toast('Clique no alto-falante pra liberar o som','info')}});
+  // se o áudio acumular atraso, reconecta pra voltar a ficar ao vivo
+  clearInterval(S.audioFix);S.audioFix=setInterval(()=>{const e=S.audioEl;if(!e||S.sound!==id){clearInterval(S.audioFix);return}
+    if(e.buffered.length&&e.buffered.end(e.buffered.length-1)-e.currentTime>2.5)soundConnect(id)},3000);
+}
+/* HD: vídeo original da câmera tocado pela janela (decodifica na placa de vídeo, quase sem CPU) */
+function stopHD(tile){tile._hdCur=null;tile.querySelectorAll('video.hd').forEach(v=>{try{v._ctrl&&v._ctrl.abort()}catch(e){}
+  v.removeAttribute('src');v.load();v.remove()});tile.classList.remove('hdmode')}
+function hdLog(msg){api('/api/log',{method:'POST',body:{msg}}).catch(()=>{})}
+async function startHD(tile,id){
+  if(!window.MediaSource){tile._hdFail=Date.now();hdLog('janela sem MediaSource');return}
+  if(tile._hdBusy)return;tile._hdBusy=true;
+  // o vídeo novo entra por baixo; o antigo (congelado) só sai quando o novo já estiver tocando: sem piscar
+  const v=document.createElement('video');v.className='hd';v.muted=true;v.autoplay=true;v.playsInline=true;
+  tile.insertBefore(v,tile.querySelector('canvas.ov'));tile._hdCur=v;
+  const ctrl=new AbortController();v._ctrl=ctrl;
+  const drop=()=>{try{ctrl.abort()}catch(e){}v.removeAttribute('src');v.load();v.remove()};
+  const fail=why=>{tile._hdBusy=false;if(tile._hdCur!==v){drop();return}
+    tile._hdFail=Date.now();tile._hdFails=(tile._hdFails||0)+1;
+    if(tile._hdFails<=3||tile._hdFails%20===0)hdLog(`alta falhou na janela (${why||'?'}) x${tile._hdFails}`);
+    stopHD(tile)};
+  let lastT=-1,lastMove=Date.now();
+  const watch=setInterval(()=>{if(!document.body.contains(v)||tile._hdCur!==v){clearInterval(watch);return}
+    if(v.currentTime!==lastT){lastT=v.currentTime;lastMove=Date.now();if(v.currentTime>3)tile._hdFails=0}
+    else if(Date.now()-lastMove>15000){clearInterval(watch);fail(`congelou; buffer=${v.buffered.length?v.buffered.start(0).toFixed(1)+'-'+v.buffered.end(v.buffered.length-1).toFixed(1):'vazio'} t=${v.currentTime.toFixed(1)} rs=${v.readyState} err=${v.error?v.error.code:0}`)}},1000);
+  try{
+    const ms=new MediaSource();v.src=URL.createObjectURL(ms);
+    await new Promise(r=>ms.addEventListener('sourceopen',r,{once:true}));
+    const r=await fetch(`/api/hd/${id}?t=${Date.now()}`,{signal:ctrl.signal,cache:'no-store'});
+    if(!r.ok)return fail('servidor '+r.status);
+    const mime=`video/mp4; codecs="${r.headers.get('X-Codec')||'avc1.640028'}"`;
+    if(!MediaSource.isTypeSupported(mime))return fail('codec não suportado: '+mime);
+    const sb=ms.addSourceBuffer(mime);const q=[];
+    const pump=()=>{if(sb.updating)return;
+      if(q.length){try{sb.appendBuffer(q.shift())}catch(e){fail('append: '+e.name)}return}
+      if(v.buffered.length){const end=v.buffered.end(v.buffered.length-1),st=v.buffered.start(0);
+        if(v.currentTime<st)v.currentTime=st;
+        const lag=end-v.currentTime;                             // fica no ao vivo sem ficar pulando
+        if(lag>4)v.currentTime=end-0.8;else v.playbackRate=lag>2.2?1.12:1;
+        if(v.currentTime-st>30){try{sb.remove(st,v.currentTime-10)}catch(e){}}}};  // não acumula memória
+    sb.addEventListener('updateend',pump);
+    v.addEventListener('playing',()=>{if(tile._hdCur!==v)return;
+      tile.querySelectorAll('video.hd').forEach(o=>{if(o!==v){try{o._ctrl&&o._ctrl.abort()}catch(e){}o.remove()}});
+      v.classList.add('on');tile.classList.add('hdmode')},{once:true});
+    const rd=r.body.getReader();
+    while(true){
+      const {done,value}=await rd.read();if(done||!document.body.contains(v)||tile._hdCur!==v)break;
+      q.push(value);pump();if(v.paused)v.play().catch(()=>{});
+    }
+  }catch(e){if(e.name!=='AbortError')fail('erro: '+e.name+' '+e.message);else tile._hdBusy=false;return}
+  tile._hdBusy=false;
+  // a conexão acabou (gravador reiniciou): já reconecta, deixando a última imagem na tela até voltar
+  if(document.body.contains(v)&&tile._hdCur===v)setTimeout(()=>{if(document.body.contains(v)&&tile._hdCur===v)startHD(tile,id)},300);
+}
+function liveRetry(img){setTimeout(()=>{if(document.body.contains(img))img.src=`/api/ao-vivo/${img.dataset.id}?k=${Date.now()}`},3000)}
+function toggleFill(){localStorage.ftFill=localStorage.ftFill==='1'?'0':'1';$('#layoutDrop').classList.add('hidden');$('#qlay').classList.add('hidden');renderGrid(true)}
+function ctxMenu(e,id){if(document.body.classList.contains("ver")){e.preventDefault();return}
+  e.preventDefault();e.stopPropagation();closeCtx();
+  const c=S.estado.cameras.find(x=>x.id===id);if(!c)return;
+  const fill=localStorage.ftFill==='1',ck=b=>b?'<span class="ck">✓</span>':'';
+  const trig=c.disparar_com||[];
+  const grp=(key,icon,title,body)=>`<div class="grp ${S.ctxOpen===key?'open':''}" data-k="${key}" onclick="event.stopPropagation();ctxToggle(this)">${ic(icon)} ${title}<span class="ar">${ic('chevR','style="width:14px;height:14px"')}</span></div><div class="sub">${body}</div>`;
+  const m=document.createElement('div');m.id='ctx';m.onclick=ev=>ev.stopPropagation();
+  m.innerHTML=`<div class="head"><b>${esc(c.nome)}</b>
+      <button class="icon-btn" title="Configurar câmera" onclick="closeCtx();editCamera('${id}')">${ic('sliders')}</button></div>
+    <div class="sep"></div>
+    ${grp('qual','wifi','Qualidade do vídeo',`
+      <div class="ci" onclick="setQual('${id}',false)">Leve (rápido)${ck(c.qualidade!=='alta')}</div>
+      <div class="ci" onclick="setQual('${id}',true)">Alta (máxima da câmera)${ck(c.qualidade==='alta')}</div>
+      <div class="hd" style="padding-left:10px">QUADROS POR SEGUNDO${c.fps?` · agora ${c.fps} fps`:''}</div>
+      <div class="chips">${[10,20,30,40,50,60,0].map(v=>`<button class="chip ${(c.fps_limite||0)===v?'on':''}" onclick="quickSet('${id}',{fps_ao_vivo:${v}})">${v||'Máx'}</button>`).join('')}</div>
+      <div class="hint" style="padding:0 10px 4px">Vale pro modo Leve. No Alta o vídeo é o original da câmera, decodificado pela placa de vídeo.</div>`)}
+    ${grp('fmt','grid','Formato da imagem',`
+      <div class="ci" onclick="localStorage.ftFill='1';toggleFill();closeCtx()">Imagem inteira${ck(!fill)}</div>
+      <div class="ci" onclick="localStorage.ftFill='0';toggleFill();closeCtx()">Preencher quadro${ck(fill)}</div>
+      <div class="ci" onclick="fullTile('${id}');closeCtx()">Tela cheia</div>`)}
+    ${grp('cap','photo','Capturar',`
+      <div class="ci" onclick="snap('${id}');closeCtx()">Tirar foto</div>
+      <div class="ci" onclick="manual('${id}');closeCtx()">Gravar agora</div>
+      ${c.som!==false?`<div class="ci" onclick="toggleSound('${id}');closeCtx()">${S.sound===id?'Desligar som':'Ouvir som ao vivo'}${ck(S.sound===id)}</div>`:''}`)}
+    ${grp('det','user','Detecção',`
+      <div class="ci" onclick="quickSet('${id}',{ia_ao_vivo:${!c.ia_ao_vivo}})">Quadrados da IA ao vivo${ck(c.ia_ao_vivo)}</div>
+      <div class="hd" style="padding-left:10px">GRAVAR QUANDO DETECTAR</div>
+      <div class="chips">${[['movimento','Movimento'],['pessoa','Pessoa'],['veículo','Veículo'],['animal','Pet']].map(([v,n])=>`<button class="chip ${trig.includes(v)?'on':''}" onclick="toggleTrig('${id}','${v}')">${n}</button>`).join('')}</div>
+      <div class="hint" style="padding:0 10px 4px">Nada marcado = qualquer movimento</div>
+      <div class="ci" onclick="closeCtx();gridEditor('${id}')">Grade de detecção</div>
+      <div class="ci" onclick="closeCtx();openFaces()">Rostos e pets</div>`)}
+    <div class="sep"></div>
+    <div class="ci" onclick="S.filter.camera='${id}';loadAlerts();closeCtx();if($('#side').classList.contains('closed'))toggleSide()">${ic('alert')} Alertas desta câmera</div>
+    ${S.estado.sistema.tapo_extra?`<div class="ci" onclick="closeCtx();tapoPanel('${id}')">${ic('siren')} Controles da Tapo</div>`:''}`;
+  (document.fullscreenElement||document.body).appendChild(m);
+  m.dataset.x=e.clientX;m.dataset.y=e.clientY;m.dataset.id=id;placeCtx(m);
+}
+function placeCtx(m){const w=m.offsetWidth,h=m.offsetHeight;
+  m.style.left=Math.max(8,Math.min(+m.dataset.x,innerWidth-w-8))+'px';m.style.top=Math.max(8,Math.min(+m.dataset.y,innerHeight-h-8))+'px'}
+function ctxToggle(el){const open=!el.classList.contains('open');document.querySelectorAll('#ctx .grp').forEach(g=>g.classList.remove('open'));
+  if(open)el.classList.add('open');S.ctxOpen=open?el.dataset.k:null;placeCtx($('#ctx'))}
+async function quickSet(id,body){await api(`/api/cameras/${id}/ajuste`,{method:'POST',body});S.config=null;await refresh();
+  const m=$('#ctx');if(m){const ev={preventDefault(){},stopPropagation(){},clientX:+m.dataset.x,clientY:+m.dataset.y};ctxMenu(ev,id)}}
+function toggleTrig(id,v){const c=S.estado.cameras.find(x=>x.id===id);let t=[...(c.disparar_com||[])];
+  t=t.includes(v)?t.filter(x=>x!==v):[...t,v];quickSet(id,{disparar_com:t});
+  toast(t.length?`Grava com: ${t.map(x=>(TIPO[x]||[x])[0]).join(', ')}`:'Grava com qualquer movimento','info')}
+function closeCtx(){const m=document.getElementById('ctx');if(m)m.remove()}
+document.addEventListener('click',closeCtx);
+window.addEventListener('focus',()=>{window.__ftHidden=false});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCtx()});
+async function setQual(id,alta){closeCtx();await api(`/api/cameras/${id}/qualidade`,{method:'POST',body:{alta}});S.config=null;
+  toast(alta?'Ao vivo em alta qualidade (gasta mais CPU)':'Ao vivo em modo leve','info')}
+function exitFull(){if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){exitFull();if(S.winFull){S.winFull=false;api('/api/janela',{method:'POST',body:{acao:'normal'}}).catch(()=>{})}}});
+/* teclas de atalho (não valem enquanto digita num campo) */
+const ATALHOS=[['F11','Tela cheia (liga/desliga)'],['Esc','Sair da tela cheia / fechar janelas'],
+  ['M','Liga/desliga o som (mudo)'],['Ctrl + + / Ctrl + −','Aumenta / diminui o volume (+ e − sozinhos também)'],['↑ / ↓','Aumenta / diminui o volume'],
+  ['← / →','Troca a câmera (na grade 1×1) ou troca a grade'],['1 · 2 · 3 · 4','Grade 1×1, 2×2, 3×3, 4×4'],['0','Grade automática'],
+  ['A','Mostrar/esconder a lista de alertas'],['Q','Alternar Leve/Alta nas câmeras da tela'],['?','Esta lista']];
+async function pastaInfo(){try{const r=await api('/api/pasta-gravacoes');S.pastaVideos=r.videos;
+  const e=$('#pastaInfo');if(e)e.innerHTML=`Agora em <b>${esc(r.atual)}</b> · ${r.livre_gb} GB livres. Ao mudar a pasta, os vídeos que já existem são levados junto.`;
+  const b=$('#pickDirBtn');if(b&&!r.pode_escolher)b.style.display='none'}catch(e){}}
+function pastaVideos(){const i=$('#c_pasta_gravacoes');if(i&&S.pastaVideos)i.value=S.pastaVideos}
+async function escolherPasta(){const r=await api('/api/escolher-pasta',{method:'POST'});if(r&&r.pasta)$('#c_pasta_gravacoes').value=r.pasta}
+async function updInfo(){const e=$('#updBox');if(!e)return;try{const r=await api('/api/atualizacao');
+  e.innerHTML=(r.nova?`<b style="color:var(--acc)">Versão ${esc(r.nova)} disponível</b> · `:`Versão ${esc(r.versao)} · `)+
+   (r.auto?'atualiza sozinho ':'atualização automática desligada ')+`<button class="btn" style="padding:4px 10px;margin-left:6px" onclick="updNow(this)">Atualizar agora</button>`+(r.erro?`<br><small>${esc(r.erro)}</small>`:'')}catch(x){e.textContent=''}}
+async function updNow(b){b.disabled=true;b.textContent='Conferindo…';try{const r=await api('/api/atualizar',{method:'POST'});toast(r.msg,'info');b.textContent=r.msg.startsWith('Atualizando')?'Reiniciando…':'Atualizar agora';if(!r.msg.startsWith('Atualizando'))b.disabled=false}catch(x){b.disabled=false;b.textContent='Atualizar agora'}}
+function showAtalhos(){modal(`<div class="modal"><div class="mh"><h2>Teclas de atalho</h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div><div class="mb"><div style="display:grid;grid-template-columns:auto 1fr;gap:10px 20px;font-size:14px">${ATALHOS.map(([k,d])=>`<b style="white-space:nowrap">${k}</b><span>${d}</span>`).join('')}</div></div></div>`)}
+function volStep(d){setVol(volPct()+d);toast('Volume '+volPct()+'%','info')}
+function camStep(d){const cams=S.estado.cameras.filter(c=>c.ativa);if(!cams.length)return;
+  if(S.layout==='1'){const cur=(S.slots||[])[0],i=cams.findIndex(c=>c.id===cur),nx=cams[(i+d+cams.length)%cams.length];
+    setSlot(0,nx.id);toast(nx.nome,'info')}
+  else{const L=['auto','1','2','3','4'],i=Math.max(0,L.indexOf(S.layout)),nl=L[(i+d+L.length)%L.length];setLayout(nl);toast(nl==='auto'?'Grade automática':`Grade ${nl}×${nl}`,'info')}}
+document.addEventListener('keydown',e=>{
+  const t=e.target;if(e.altKey||e.metaKey||(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))))return;
+  if($('#player'))return;  // no vídeo gravado as setas/espaço são do player
+  const k=e.key,cams=(S.slots||[]).filter(Boolean);
+  // Ctrl + / Ctrl − = volume (e não deixa dar zoom na tela)
+  if(e.ctrlKey){if(k==='+'||k==='='||e.code==='NumpadAdd'){e.preventDefault();volStep(10)}
+    else if(k==='-'||k==='_'||e.code==='NumpadSubtract'){e.preventDefault();volStep(-10)}return}
+  if(k==='F11'){e.preventDefault();api('/api/janela',{method:'POST',body:{acao:'alternar'}}).then(r=>{S.winFull=!!(r&&r.cheia)}).catch(()=>{})}
+  else if(k==='m'||k==='M'){const id=S.sound||cams[0];if(id){toggleSound(id);toast(S.sound?'Som ligado':'Mudo','info')}}
+  else if(k==='+'||k==='='||k==='ArrowUp'){e.preventDefault();volStep(10)}
+  else if(k==='-'||k==='_'||k==='ArrowDown'){e.preventDefault();volStep(-10)}
+  else if(k==='ArrowRight'||k==='ArrowLeft'){e.preventDefault();camStep(k==='ArrowRight'?1:-1)}
+  else if('01234'.includes(k)&&k.length===1){setLayout(k==='0'?'auto':k);toast(k==='0'?'Grade automática':`Grade ${k}×${k}`,'info')}
+  else if(k==='a'||k==='A')toggleSide();
+  else if(k==='q'||k==='Q'){const cs=S.estado.cameras.filter(c=>cams.includes(c.id));if(!cs.length)return;
+    const alta=!cs.every(c=>c.qualidade==='alta');cs.forEach(c=>setQual(c.id,alta))}
+  else if(k==='?'||k==='/')showAtalhos();
+});
+/* ===== modo TV (app da TV box): só assistir, navegando pelo controle remoto ===== */
+const TV=new URLSearchParams(location.search).has('tv');
+/* modo só assistir (app no celular): esconde ajustes/câmeras/sistema */
+if(new URLSearchParams(location.search).has('ver'))document.body.classList.add('ver');
+function tvTiles(){return [...document.querySelectorAll('#grid > .tile')]}
+function tvMark(){tvTiles().forEach((t,i)=>t.classList.toggle('tvsel',i===S.tvSel&&S.layout!=='1'))}
+function tvOpen(id){const st=slotStore();st[1]=[id];localStorage.ftSlots=JSON.stringify(st);setLayout('1');
+  setTimeout(()=>{if(S.sound!==id)toggleSound(id)},700)}   // tela cheia já com som
+function tvRec(on){S.tvRec=on;document.body.classList.toggle('tvrec',on);const closed=$('#side').classList.contains('closed');
+  if(on&&closed)toggleSide();if(!on&&!closed)toggleSide();
+  if(on){S.tvRecSel=0;tvRecMark();toast('↑↓ escolher · OK assistir · → ou Voltar: câmeras','info')}else tvMark()}
+function tvRecMark(){const it=[...document.querySelectorAll('#alertList .al')];it.forEach((e,i)=>e.classList.toggle('tvsel',i===S.tvRecSel));
+  const e=it[S.tvRecSel];if(e)e.scrollIntoView({block:'nearest'})}
+function tvBack(){if($('#modal .modal')){closeModal();if(S.tvRec)setTimeout(tvRecMark,100);return true}
+  if(S.tvRec){tvRec(false);return true}
+  if(S.layout==='1'&&S.tvPrev){if(S.sound)toggleSound(S.sound);const p=S.tvPrev;S.tvPrev=null;setLayout(p);setTimeout(tvMark,300);return true}return false}
+window.tvBack=tvBack;
+if(TV){
+  document.body.classList.add('tv');S.tvSel=0;S.tvPrev=null;
+  setTimeout(()=>{if(!$('#side').classList.contains('closed'))toggleSide()},300);
+  setInterval(tvMark,500);
+  setTimeout(()=>toast('OK: tela cheia com som  ·  ← na 1ª câmera: gravações  ·  Voltar: grade','info'),1500);
+  document.addEventListener('keydown',e=>{
+    const k=e.key,tiles=tvTiles(),n=tiles.length;
+    const stop=()=>{e.preventDefault();e.stopImmediatePropagation()};
+    if(k==='Escape'||k==='Backspace'||k==='GoBack'||k==='BrowserBack'){if(tvBack())stop();return}
+    if($('#player')){   // assistindo gravação: OK pausa, ←→ alerta anterior/próximo (já tratados), ↑↓ nada
+      if(k==='Enter'){stop();const v=$('#vid');if(v)v.paused?v.play():v.pause()}
+      return}
+    if($('#modal .modal')||$('#ctx'))return;
+    if(S.tvRec){       // lista de gravações
+      const it=document.querySelectorAll('#alertList .al').length;
+      if(k==='ArrowDown'||k==='ArrowUp'){stop();S.tvRecSel=Math.max(0,Math.min(it-1,(S.tvRecSel||0)+(k==='ArrowDown'?1:-1)));tvRecMark();return}
+      if(k==='Enter'){stop();if(it)play(S.tvRecSel||0);return}
+      if(k==='ArrowRight'){stop();tvRec(false);return}
+      stop();return}
+    const cols=Math.max(1,getComputedStyle($('#grid')).gridTemplateColumns.split(' ').length);
+    if(S.layout!=='1'){
+      if(k==='ArrowLeft'&&(S.tvSel||0)%cols===0){stop();tvRec(true);return}
+      if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)){stop();
+        let i=S.tvSel||0;if(k==='ArrowLeft')i--;if(k==='ArrowRight')i++;if(k==='ArrowUp')i-=cols;if(k==='ArrowDown')i+=cols;
+        S.tvSel=Math.max(0,Math.min(n-1,i));tvMark();return}
+      if(k==='Enter'){stop();const t=tiles[S.tvSel||0];if(!t||!t.id.startsWith('t-'))return;S.tvPrev=S.layout;tvOpen(t.id.slice(2));return}
+    }else{
+      if(k==='Enter'){stop();const id=(S.slots||[])[0];if(id){toggleSound(id);toast(S.sound?'Som ligado':'Mudo','info')}return}
+    }
+  },true);
+}
+if(new URLSearchParams(location.search).has('cheia')){S.winFull=true;
+  setTimeout(()=>{if(!$('#side').classList.contains('closed'))toggleSide();toast('Tela cheia — aperte Esc pra sair','info')},300)}
+function slotMenu(e,i){
+  e.stopPropagation();closeCtx();
+  const cams=S.estado.cameras.filter(c=>c.ativa),cur=(S.slots||[])[i],c=cams.find(x=>x.id===cur);
+  const ck=b=>b?'<span class="ck">✓</span>':'';
+  const m=document.createElement('div');m.id='ctx';m.onclick=ev=>ev.stopPropagation();
+  m.innerHTML=`<div class="head"><b>Quadro ${i+1}</b>${c?`<button class="icon-btn" title="Todas as opções da câmera" onclick="ctxMenu({preventDefault(){},stopPropagation(){},clientX:${e.clientX},clientY:${e.clientY}},'${c.id}')">${ic('sliders')}</button>`:''}</div>
+    <div class="hd" style="padding-left:10px">CÂMERA NESTE QUADRO</div>
+    ${cams.map(x=>`<div class="ci" onclick="setSlot(${i},'${x.id}')">${ic('camera')} ${esc(x.nome)}${ck(x.id===cur)}</div>`).join('')}
+    ${cur?`<div class="ci" onclick="setSlot(${i},'')">${ic('x')} Deixar vazio</div>`:''}
+    <div class="ci" onclick="closeCtx();openCameras(true)">${ic('plus')} Adicionar câmera nova</div>
+    ${c?`<div class="sep"></div><div class="hd" style="padding-left:10px">COMO VER</div>
+      <div class="ci" onclick="setQual('${c.id}',false)">Leve (rápido)${ck(c.qualidade!=='alta')}</div>
+      <div class="ci" onclick="setQual('${c.id}',true)">Alta (máxima da câmera)${ck(c.qualidade==='alta')}</div>
+      <div class="ci" onclick="closeCtx();fullTile('${c.id}')">Tela cheia</div>
+      ${c.som!==false?`<div class="sep"></div><div class="ci" onclick="toggleSound('${c.id}');slotMenu({stopPropagation(){},clientX:${e.clientX},clientY:${e.clientY}},${i})">${ic(S.sound===c.id?'vol':'mute')} ${S.sound===c.id?'Desligar som':'Ouvir som'}${ck(S.sound===c.id)}</div>
+        <div class="volrow"><span>Volume</span><input type="range" min="0" max="300" step="5" value="${volPct()}" oninput="setVol(this.value)"><span class="vv">${volPct()}%</span></div>`:''}`:''}`;
+  (document.fullscreenElement||document.body).appendChild(m);
+  m.dataset.x=e.clientX;m.dataset.y=e.clientY;placeCtx(m);
+}
+function fullTile(id){const t=document.getElementById('t-'+id);if(t&&t.requestFullscreen)t.requestFullscreen()}
+function focusCam(id){fullTile(id)}
+function renderFocusBar(){
+  const fb=$('#focusBar');
+  if(!S.focus){fb.classList.add('hidden');return}
+  const cam=S.estado.cameras.find(c=>c.id===S.focus);
+  fb.classList.remove('hidden');
+  fb.innerHTML=`
+    <button class="pb" onclick="focusCam('${S.focus}')">${ic('back')}<span>Voltar</span></button>
+    <button class="pb" onclick="snap('${S.focus}')">${ic('photo')}<span>Foto</span></button>
+    <button class="pb" onclick="manual('${S.focus}')">${ic('hand')}<span>Gravar agora</span></button>
+    <button class="pb" onclick="S.filter.camera='${S.focus}';loadAlerts();if($('#side').classList.contains('closed'))toggleSide()">${ic('alert')}<span>Alertas</span></button>
+    ${S.estado.sistema.tapo_extra?`<button class="pb" onclick="tapoPanel('${S.focus}')">${ic('siren')}<span>Tapo</span></button>`:''}
+    <button class="pb" onclick="editCamera('${S.focus}')">${ic('edit')}<span>Editar</span></button>`;
+}
+function snap(id){const a=document.createElement('a');a.href='/api/foto/'+id;a.download=`ftcam-${id}-${Date.now()}.jpg`;a.click()}
+async function manual(id){await api(`/api/cameras/${id}/disparar`,{method:'POST'});toast('Gravação manual iniciada','info')}
+function setLayout(l){S.layout=l;localStorage.ftLayout=l;$('#layoutDrop').classList.add('hidden');$('#qlay').classList.add('hidden');renderGrid(true)}
+function layoutHTML(){return `<h4>Grade</h4><div class="seg">${[['auto','Auto'],['1','1×1'],['2','2×2'],['3','3×3'],['4','4×4']].map(([v,n])=>`<button class="${S.layout===v?'on':''}" onclick="setLayout('${v}')">${n}</button>`).join('')}</div><h4 style="margin-top:12px">Imagem</h4><div class="seg"><button class="${localStorage.ftFill!=='1'?'on':''}" onclick="localStorage.ftFill='1';toggleFill()">Inteira</button><button class="${localStorage.ftFill==='1'?'on':''}" onclick="localStorage.ftFill='0';toggleFill()">Preencher</button></div>`}
+function toggleLayouts(){const d=$('#layoutDrop');d.innerHTML=layoutHTML();d.classList.toggle('hidden')}
+/* atalho no canto: troca a grade na hora (funciona até sem câmera nenhuma) */
+function quickLayouts(){const d=$('#qlay');$('#notif').classList.add('hidden');d.innerHTML=layoutHTML();d.classList.toggle('hidden')}
+document.addEventListener('click',()=>{const d=document.getElementById('qlay');if(d)d.classList.add('hidden')});
+function renderBanner(){
+  const b=$('#banner');
+  if(!S.estado.sistema.ffmpeg){b.textContent='ffmpeg não encontrado — coloque o ffmpeg.exe na pasta do FTCam pra gravar.';b.classList.remove('hidden')}
+  else b.classList.add('hidden');
+}
+
+/* ================= lateral de alertas ================= */
+function toggleSide(force){const s=$('#side');s.classList.toggle('closed');localStorage.ftSide=s.classList.contains('closed')?'0':'1';$('#sideBtn').innerHTML=ic(s.classList.contains('closed')?'chevR':'chevL')}
+async function loadAlerts(){
+  const f=S.filter,q=new URLSearchParams();
+  if(f.camera)q.set('camera',f.camera);if(f.tipo.length)q.set('tipo',f.tipo.join(','));
+  if(f.desde)q.set('desde',f.desde);if(f.ate)q.set('ate',f.ate);
+  try{S.alerts=await api('/api/alertas?'+q)}catch(e){return}
+  renderAlerts();renderTimeline();
+}
+function renderAlerts(){
+  const L=$('#alertList');
+  const active=S.filter.camera||S.filter.tipo.length||S.filter.desde||S.filter.ate;
+  $('#fBtn').classList.toggle('on',!!active);
+  $('#alertTitle').textContent=`ALERTAS (${S.alerts.length})`;
+  if(!S.alerts.length){L.innerHTML=`<div class="empty">${active?'Nenhum alerta com esse filtro.':'Nenhum alerta gravado ainda.<br>Quando algo se mexer, aparece aqui.'}</div>`;return}
+  let html='',day='';
+  S.alerts.forEach((a,i)=>{
+    const d=fmtD(a.inicio);
+    if(d!==day){day=d;const n=S.alerts.filter(x=>fmtD(x.inicio)===d).length;html+=`<div class="day">${esc(d)} (${n})</div>`}
+    html+=`<div class="al" onclick="if(S.selecting){this.querySelector('input').click()}else play(${i})">
+      <img src="/miniatura/${a.id}" loading="lazy" onerror="this.style.visibility='hidden'">
+      <div><b>${esc(a.camera)}</b><small>${fmtT(a.inicio)}${a.duracao?` · ${a.duracao}s`:''}</small><br>${tag(a.tipo)}${Object.keys(a.objetos||{}).filter(k=>k!=='pessoa').slice(0,2).map(k=>` <span class="tag">${esc(k)}</span>`).join('')}${(a.rostos||[]).slice(0,2).map(r=>` <span class="tag rosto">${ic('user','style="width:11px;height:11px"')} ${esc(r)}</span>`).join('')}${(a.pets||[]).map(r=>` <span class="tag animal">${ic('paw','style="width:11px;height:11px"')} ${esc(r)}</span>`).join('')}</div>
+      <input type="checkbox" value="${a.id}" onclick="event.stopPropagation()"></div>`;
+  });
+  L.innerHTML=html;
+}
+function toggleSelect(){S.selecting=!S.selecting;$('#side').classList.toggle('selecting',S.selecting);$('#dBtn').classList.toggle('hidden',!S.selecting);$('#sBtn').classList.toggle('on',S.selecting)}
+async function deleteSelected(){
+  const ids=[...document.querySelectorAll('#alertList input:checked')].map(i=>i.value);
+  if(!ids.length||!confirm(`Apagar ${ids.length} alerta(s)?`))return;
+  await api('/api/alertas',{method:'DELETE',body:{ids}});toggleSelect();loadAlerts();
+}
+
+/* ================= linha do tempo ================= */
+function toggleTimeline(){const t=$('#timeline');t.classList.toggle('open');localStorage.ftTl=t.classList.contains('open')?'1':'0';$('#tlBtn').classList.toggle('on',t.classList.contains('open'));renderTimeline()}
+function renderTimeline(){
+  if(!$('#timeline').classList.contains('open')||!S.estado)return;
+  document.querySelectorAll('#tlRange button').forEach(b=>b.classList.toggle('on',+b.dataset.d===S.tlDays));
+  const now=Date.now()/1000,span=S.tlDays*86400,start=now-span,pct=t=>((t-start)/span*100);
+  $('#tlTitle').textContent=S.tlDays===1?'Últimas 24 horas':`Últimos ${S.tlDays} dias`;
+  const ticks=[];
+  if(S.tlDays===1){for(let h=0;h<=24;h+=3){const t=start+h*3600;ticks.push([pct(t),new Date(t*1000).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})])}}
+  else{const step=S.tlDays>7?5:1;for(let d=0;d<=S.tlDays;d+=step){const t=new Date((start+d*86400)*1000);t.setHours(0,0,0,0);const tt=t/1000;if(tt>=start)ticks.push([pct(tt),t.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})])}}
+  $('#tlAxis').innerHTML=ticks.map(([p,l])=>`<span style="left:${p}%">${l}</span>`).join('');
+  const cams=S.estado.cameras;
+  $('#tlRows').innerHTML=cams.map(c=>{
+    const evs=S.alerts.map((a,i)=>[a,i]).filter(([a])=>a.camera_id===c.id&&a.inicio>=start);
+    return `<div class="tl-row"><div class="n" title="${esc(c.nome)}">${esc(c.nome)} <small style="color:var(--mut)">${evs.length}</small></div>
+      <div class="tl-track">${evs.map(([a,i])=>`<div class="tl-ev ${esc(a.tipo)}" title="${esc(a.camera)} · ${fmtDT(a.inicio)}" style="left:${pct(a.inicio)}%;width:${Math.max(.25,(a.duracao||30)/span*100)}%" onclick="play(${i})"></div>`).join('')}
+      <div class="tl-now" style="left:100%"></div></div></div>`}).join('')||'<div class="empty">Sem câmeras.</div>';
+}
+
+/* ================= player ================= */
+function play(i){
+  S.playIdx=i;const a=S.alerts[i];if(!a)return;
+  document.querySelectorAll('.al').forEach((el,k)=>el.classList.toggle('sel',k===i));
+  modal(`<div class="modal wide" id="player">
+    <div class="mh">${ic('film')}<h2>${esc(a.camera)} <small style="color:var(--mut);font-weight:400">· ${fmtDT(a.inicio)}</small></h2><span class="mtag">${tag(a.tipo)}</span>
+      <a class="btn" href="/clipe/${a.id}?baixar=1">${ic('download')}<span class="bt"> Baixar</span></a>
+      <button class="btn red" onclick="delOne('${a.id}')">${ic('trash')}</button>
+      <button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="mb"><div style="position:relative;display:inline-block;max-width:100%"><video id="vid" src="/clipe/${a.id}" autoplay playsinline></video><canvas id="vbox" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas></div><span class="ts" id="vts"></span>
+      <button class="nav l" onclick="play(${i+1})" ${i+1>=S.alerts.length?'disabled style="opacity:.3"':''} title="Alerta anterior">${ic('chevL')}</button>
+      <button class="nav r" onclick="play(${i-1})" ${i<=0?'disabled style="opacity:.3"':''} title="Próximo alerta">${ic('chevR')}</button></div>
+    <div class="pctl"><div class="pill" style="position:static">
+      <button class="pb" onclick="play(${i+1})" title="Alerta anterior">${ic('back')}</button>
+      <button class="pb" onclick="vid.currentTime-=10" title="-10s">${ic('rw')}</button>
+      <button class="pb" onclick="vid.currentTime=0">${ic('skipB')}</button>
+      <button class="pb" onclick="vid.paused?vid.play():vid.pause()" id="ppBtn">${ic('pause')}</button>
+      <button class="pb" onclick="vid.currentTime=vid.duration-0.1">${ic('skipF')}</button>
+      <button class="pb" onclick="vid.currentTime+=10" title="+10s">${ic('ff')}</button>
+      <button class="pb" onclick="cycleRate(this)" style="min-width:44px">1×</button>
+      <button class="pb ${localStorage.ftBoxes!=='0'?'on':''}" onclick="localStorage.ftBoxes=localStorage.ftBoxes==='0'?'1':'0';this.classList.toggle('on')" title="Mostrar detecções">${ic('user')}</button>
+      <button class="pb" onclick="play(${i-1})" title="Próximo alerta" style="transform:scaleX(-1)">${ic('back')}</button>
+    </div></div>
+    <div class="scrub"><span id="vcur">0:00</span><input type="range" id="vbar" min="0" max="1000" value="0"><span id="vdur">0:00</span></div>
+  </div>`);
+  const v=$('#vid'),bar=$('#vbar'),f=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+  let dets=[];api('/api/alertas/deteccoes/'+a.id).then(d=>dets=d||[]).catch(()=>{});
+  const cv=$('#vbox');
+  const draw=()=>{if(!document.body.contains(cv))return;requestAnimationFrame(draw);
+    const W=cv.clientWidth,H=cv.clientHeight;if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
+    const g=cv.getContext('2d');g.clearRect(0,0,W,H);
+    if(localStorage.ftBoxes==='0'||!dets.length||!v.videoWidth)return;
+    // pega a análise de antes e a de depois do tempo atual e desliza os quadrados entre elas
+    const t=v.currentTime;let A=null,B=null;
+    for(const d of dets){if(d.t<=t)A=d;else{B=d;break}}
+    if(!A&&!B)return;
+    if(!A)A=B;if(!B||B.t-A.t>6)B=null;
+    if(!B&&Math.abs(t-A.t)>2.5)return;
+    const k=B?Math.min(1,Math.max(0,(t-A.t)/(B.t-A.t))):0;
+    const iou=(a,b)=>{const x1=Math.max(a[0],b[0]),y1=Math.max(a[1],b[1]),x2=Math.min(a[2],b[2]),y2=Math.min(a[3],b[3]);
+      const i=Math.max(0,x2-x1)*Math.max(0,y2-y1);return i/((a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-i+1e-6)};
+    const near=(a,b)=>{const ca=[(a[0]+a[2])/2,(a[1]+a[3])/2],cb=[(b[0]+b[2])/2,(b[1]+b[3])/2];return Math.hypot(ca[0]-cb[0],ca[1]-cb[1])<(a[2]-a[0])*1.2};
+    const lerp=(list,key)=>A[key].map(o=>{if(!B)return o;
+      let m=null,sc=0;for(const n of B[key]){if(n.n!==o.n&&key==='o')continue;const x=iou(o.b,n.b);if(x>sc||(!m&&near(o.b,n.b))){sc=x;m=n}}
+      return m?{...o,b:o.b.map((v,i)=>v+(m.b[i]-v)*k)}:o});
+    const best={dim:A.dim,o:lerp(A.o,'o'),f:lerp(A.f,'f')};
+    const sx=W/best.dim[0],sy=H/best.dim[1];g.lineWidth=2;g.font='600 13px Segoe UI, system-ui, sans-serif';
+    const box=(b,col,t)=>{const x=b[0]*sx,y=b[1]*sy,w=(b[2]-b[0])*sx,h=(b[3]-b[1])*sy;g.strokeStyle=col;g.strokeRect(x,y,w,h);
+      const tw=g.measureText(t).width+8;g.fillStyle=col;g.fillRect(x-1,Math.max(0,y-19),tw,19);g.fillStyle='#000';g.fillText(t,x+3,Math.max(14,y-5))};
+    best.o.forEach(o=>box(o.b,BOXCOL[o.k]||'#fff',`${o.n} ${Math.round(o.c*100)}%`));
+    best.f.forEach(fc=>box(fc.b,fc.n==='desconhecido'?'#ffd000':'#2ecc71',fc.n));
+  };draw();
+  window.vid=v;let drag=false;
+  const set=(id,k,val)=>{const e=document.getElementById(id);if(e)e[k]=val};
+  v.ontimeupdate=()=>{if(!drag&&v.duration)bar.value=v.currentTime/v.duration*1000;set('vcur','textContent',f(v.currentTime));set('vts','textContent',new Date((a.inicio+v.currentTime)*1000).toLocaleString('pt-BR'))};
+  v.onloadedmetadata=()=>set('vdur','textContent',f(v.duration));
+  v.onplay=()=>set('ppBtn','innerHTML',ic('pause'));v.onpause=()=>set('ppBtn','innerHTML',ic('play'));
+  bar.oninput=()=>{drag=true;v.currentTime=bar.value/1000*v.duration};bar.onchange=()=>drag=false;
+}
+function cycleRate(b){const r=[1,2,4,.5];const n=r[(r.indexOf(vid.playbackRate)+1)%r.length];vid.playbackRate=n;b.textContent=n+'×'}
+async function delOne(id){if(!confirm('Apagar este alerta?'))return;await api('/api/alertas',{method:'DELETE',body:{ids:[id]}});closeModal();loadAlerts()}
+
+/* ================= filtro ================= */
+function openFilter(){
+  const f=S.filter,cams=S.estado.cameras,toLocal=t=>t?new Date(t*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16):'';
+  modal(`<div class="modal small"><div class="mh">${ic('filter')}<h2>Filtro</h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+   <div class="mb"><div class="form">
+    <label>Rápido</label><div class="seg">${[['','Tudo'],['1','Hoje'],['2','Ontem'],['7','7 dias']].map(([v,n])=>`<button onclick="quickF('${v}')">${n}</button>`).join('')}</div>
+    <label>De</label><input type="datetime-local" id="fDe" value="${toLocal(f.desde)}">
+    <label>Até</label><input type="datetime-local" id="fAte" value="${toLocal(f.ate)}">
+    <label>Câmeras</label><div class="chips" id="fCams"><button class="chip ${!f.camera?'on':''}" data-v="">Todas</button>${cams.map(c=>`<button class="chip ${f.camera===c.id?'on':''}" data-v="${c.id}">${esc(c.nome)}</button>`).join('')}</div>
+    <label>Tipo</label><div class="chips" id="fTipos">${Object.entries(TIPO).filter(([k])=>['movimento','pessoa','veículo','animal','manual'].includes(k)).map(([k,[n,i]])=>`<button class="chip ${f.tipo.includes(k)?'on':''}" data-v="${k}">${ic(i,'style="width:14px;height:14px"')} ${n}</button>`).join('')}</div>
+   </div></div>
+   <div class="mf"><button class="btn" onclick="S.filter={camera:'',tipo:[],desde:null,ate:null};closeModal();loadAlerts()">Limpar</button><button class="btn pri" onclick="applyF()">Aplicar</button></div></div>`);
+  $('#fCams').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;$('#fCams').querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b))};
+  $('#fTipos').onclick=e=>{const b=e.target.closest('.chip');if(b)b.classList.toggle('on')};
+}
+function quickF(v){const d=new Date();d.setHours(0,0,0,0);const set=(a,b)=>{$('#fDe').value=a?new Date(a-d.getTimezoneOffset()*60000).toISOString().slice(0,16):'';$('#fAte').value=b?new Date(b-d.getTimezoneOffset()*60000).toISOString().slice(0,16):''};
+  if(v==='')set(null,null);else if(v==='1')set(+d,null);else if(v==='2')set(+d-864e5,+d);else set(Date.now()-7*864e5,null)}
+function applyF(){
+  const ts=id=>$(id).value?new Date($(id).value).getTime()/1000:null;
+  S.filter={desde:ts('#fDe'),ate:ts('#fAte'),camera:$('#fCams .chip.on')?.dataset.v||'',tipo:[...document.querySelectorAll('#fTipos .chip.on')].map(b=>b.dataset.v)};
+  closeModal();loadAlerts();
+}
+
+/* ================= notificações ================= */
+function renderNotif(){
+  const ns=S.estado.notificacoes,unread=ns.filter(n=>n.seq>S.seenSeq).length;
+  const b=$('#bellN');b.textContent=unread>9?'9+':unread;b.classList.toggle('hidden',!unread);
+  const d=$('#notif');if(d.classList.contains('hidden'))return;
+  d.innerHTML=`<h4>Notificações <button class="icon-btn" onclick="toggleNotif()">${ic('x')}</button></h4>`+(ns.length?ns.map(n=>`
+    <div class="nt" onclick="toggleNotif();fullTile('${n.camera_id}')">${ic((TIPO[n.tipo]||[])[1]||'camera')}
+    <div><b>${esc(n.camera)}</b><br><small>${(TIPO[n.tipo]||[n.tipo])[0]} · ${fmtDT(n.quando)}</small></div></div>`).join(''):'<div class="empty">Nada por enquanto.</div>');
+}
+function toggleNotif(){const d=$('#notif');d.classList.toggle('hidden');if(!d.classList.contains('hidden')){S.seenSeq=S.lastSeq;localStorage.ftSeen=S.seenSeq}renderNotif()}
+function toast(html,cls='',onclick){const t=document.createElement('div');t.className='toast '+cls;t.innerHTML=html;t.onclick=()=>{onclick&&onclick();t.remove()};$('#toasts').appendChild(t);setTimeout(()=>t.remove(),6000)}
+
+/* ================= modal base ================= */
+/* botão "voltar" do celular/navegador fecha a tela aberta em vez de sair do FTCam */
+let _skipPop=false;
+function pushNav(kind){if(!(history.state&&history.state.ft===kind))history.pushState({ft:kind},'')}
+function popNav(kind){if(history.state&&history.state.ft===kind){_skipPop=true;history.back()}}
+window.addEventListener('popstate',()=>{
+  if(_skipPop){_skipPop=false;return}
+  if(document.getElementById('ctx')){closeCtx();return}
+  if($('#modal').innerHTML){closeModal(true);return}
+  if(document.fullscreenElement){exitFull();return}
+  if(!$('#notif').classList.contains('hidden')){toggleNotif();return}
+  if(S.focus){S.focus=null;renderGrid(true);return}
+});
+function modal(html){const open=!!$('#modal').innerHTML;$('#modal').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()">${html}</div>`;if(!open)pushNav('modal')}
+function closeModal(fromBack){if(!fromBack)popNav('modal');const v=$('#vid');if(v){v.ontimeupdate=v.onpause=v.onplay=null;v.pause();v.removeAttribute('src')}$('#modal').innerHTML='';document.querySelectorAll('.al.sel').forEach(e=>e.classList.remove('sel'))}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();if($('#player')){if(e.key==='ArrowRight')play(S.playIdx-1);if(e.key==='ArrowLeft')play(S.playIdx+1);if(e.key===' '){e.preventDefault();vid.paused?vid.play():vid.pause()}}});
+
+/* ================= sistema ================= */
+async function openSystem(){
+  const s=S.estado.sistema,bar=(p,c)=>`<span class="bar"><i style="width:${Math.min(100,p)}%;background:${c||(p>85?'var(--bad)':p>60?'var(--warn)':'var(--ok)')}"></i></span>`;
+  const used=s.disco_total_gb-s.disco_livre_gb;
+  modal(`<div class="modal wide"><div class="mh"><h2>FTCam <small style="color:var(--mut);font-weight:400">v${s.versao}</small></h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+   <div class="mb">
+    <div style="color:var(--mut);margin-bottom:8px">${esc(s.ip)}:${s.porta}</div>
+    <div id="updBox" style="margin-bottom:10px;color:var(--mut);font-size:13px">Conferindo atualizações…</div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--mut)">📺 App da TV box e celular: baixe em <b style="color:var(--txt)">facincanitech.github.io/ftcam</b> e coloque o endereço <b style="color:var(--txt)">${esc(s.ip)}:${s.porta}</b></div>
+    <div class="sysbars">
+      ${s.cpu!=null?`<span class="sb">CPU ${bar(s.cpu)} ${Math.round(s.cpu)}%</span>`:''}
+      ${s.mem_total_gb?`<span class="sb">MEM ${bar(s.mem_usada_gb/s.mem_total_gb*100)} ${s.mem_usada_gb}/${s.mem_total_gb} GB</span>`:''}
+      <span class="sb">HD ${bar(used/s.disco_total_gb*100)} ${s.disco_livre_gb} GB livres</span>
+      <span class="sb">ffmpeg <i class="dot ${s.ffmpeg?'on':''}"></i></span>
+      ${s.ia_onde?`<span class="sb">IA: ${esc(s.ia_onde)} · ${s.ia_ms} ms</span>`:''}
+      <span class="sb">${S.estado.cameras.filter(c=>c.online).length}/${S.estado.cameras.length} câmeras online</span>
+    </div>
+    <div class="sys-grid">
+      <div><h3>Sistema</h3>
+        <button class="btn" onclick="openSettings('acesso')">${ic('wifi')} Acesso pela rede</button>
+        <button class="btn" onclick="api('/api/abrir-pasta',{method:'POST'})">${ic('folder')} Abrir pasta das gravações</button>
+        <div class="hint">${esc(s.pasta)}</div></div>
+      <div><h3>Câmeras</h3>
+        <button class="btn" onclick="editCamera()">${ic('plus')} Nova câmera</button>
+        <button class="btn" onclick="openCameras()">${ic('edit')} Editar câmeras</button>
+        <button class="btn" onclick="discover()">${ic('search')} Procurar na rede</button>
+        <button class="btn" onclick="openFaces()">${ic('user')} Rostos</button></div>
+      <div><h3>Configuração</h3>
+        <button class="btn" onclick="openSettings()">${ic('sliders')} Ajustes</button>
+        <button class="btn" onclick="openSettings('notificacoes')">${ic('bell')} Notificações / Thoth</button></div>
+      <div><h3>Abrir no celular</h3>
+        <div class="hint" style="font-size:13px">Na mesma rede Wi-Fi, abra no navegador:<br><b style="color:var(--txt);font-size:15px">http://${esc(s.ip)}:${s.porta}</b></div></div>
+    </div></div>
+   <div class="mf"><button class="btn red" style="margin-right:auto" onclick="quitApp()">${ic('power')} Fechar FTCam (para de gravar)</button><button class="btn pri" onclick="closeModal()">OK</button></div></div>`);
+  updInfo();
+}
+async function quitApp(){if(!confirm('Fechar o FTCam? A gravação para até você abrir de novo.'))return;
+  try{await api('/api/sair',{method:'POST'})}catch(e){}
+  document.body.innerHTML='<div style="display:flex;height:100%;align-items:center;justify-content:center;color:#8b9bb0;font:16px Segoe UI">FTCam fechado. Pode fechar esta janela.</div>'}
+
+/* ================= ajustes ================= */
+async function openSettings(sec){
+  const c=await api('/api/config');S.config=c;
+  const sections={
+    gravacao:['Gravação','film',`
+      <label>Segundos antes do alerta</label><input type="number" id="c_segundos_antes" min="0" max="60" value="${c.segundos_antes}">
+      <label>Segundos depois</label><input type="number" id="c_segundos_depois" min="5" max="120" value="${c.segundos_depois}">
+      <label>Clipe mínimo (s)</label><input type="number" id="c_clipe_minimo_segundos" min="5" max="600" value="${c.clipe_minimo_segundos}">
+      <label>Clipe máximo (s)</label><input type="number" id="c_clipe_maximo_segundos" min="10" max="1800" value="${c.clipe_maximo_segundos}">
+      <div class="full hint">Cada alerta vira um clipe entre o mínimo e o máximo. Se o movimento continuar, um novo clipe começa em seguida.</div>`],
+    armazenamento:['Armazenamento','hdd',`
+      <label>Guardar alertas por</label><div><input type="number" id="c_dias_guardar" min="1" max="365" value="${c.dias_guardar}"> dias</div>
+      <label>Tamanho máximo das gravações</label><div><input type="number" id="c_tamanho_maximo_gb" min="0" max="10000" step="1" value="${c.tamanho_maximo_gb||0}"> GB <small style="color:var(--mut)">(0 = sem limite)</small></div>
+      <label>Espaço livre mínimo</label><div><input type="number" id="c_espaco_livre_minimo_gb" min="0" max="500" step="0.5" value="${c.espaco_livre_minimo_gb}"> GB</div>
+      <label>Pasta das gravações</label><div style="display:flex;gap:6px;flex-wrap:wrap"><input id="c_pasta_gravacoes" value="${esc(c.pasta_gravacoes)}" style="flex:1;min-width:200px">
+        <button class="btn" style="padding:6px 10px" type="button" onclick="pastaVideos()">Pasta Vídeos</button><button class="btn" style="padding:6px 10px" type="button" id="pickDirBtn" onclick="escolherPasta()">Escolher…</button><button class="btn" style="padding:6px 10px" type="button" onclick="api('/api/abrir-pasta',{method:'POST'})">Abrir</button></div>
+      <div class="full hint" id="pastaInfo">Ao mudar a pasta, os vídeos que já existem são levados junto.</div>
+      <div class="full hint">Passou dos dias, apaga sozinho. Se o HD ficar abaixo do espaço mínimo, apaga os mais antigos antes.</div>`],
+    notificacoes:['Notificações','bell',`
+      <label>Webhook (Thoth etc.)</label><input id="c_webhook_alerta" placeholder="https://...supabase.co/functions/v1/ftcam-alerta" value="${esc(c.webhook_alerta)}">
+      <div class="full hint">A cada alerta o FTCam manda um POST JSON com câmera, tipo, horário e a foto em base64. Funciona com a porta bloqueada, porque é conexão de saída.</div>`],
+    acesso:['Acesso pela rede','wifi',`
+      <label>Abrir pelo celular/rede</label><label class="switch" style="justify-self:start"><input type="checkbox" id="c_acesso_rede" ${c.painel.acesso_rede?'checked':''}><span></span></label>
+      <label>Porta</label><input type="number" id="c_porta" min="1024" max="65535" value="${c.painel.porta}">
+      <label>Senha (rede)</label><input type="password" autocomplete="new-password" id="c_senha_painel" value="${esc(c.painel.senha)}" placeholder="sem senha">
+      <div class="full hint">A senha só é pedida para quem acessa de outro aparelho. Mudanças de porta valem ao reabrir o FTCam.</div>`],
+    sistema:['Sistema','server',`
+      <label>Iniciar com o Windows</label><label class="switch" style="justify-self:start"><input type="checkbox" id="c_iniciar_com_windows" ${c.iniciar_com_windows?'checked':''}><span></span></label>
+      <label>Atualizar sozinho</label><label class="switch" style="justify-self:start"><input type="checkbox" id="c_atualizar_sozinho" ${c.atualizar_sozinho!==false?'checked':''}><span></span></label>
+      <label>Ao ligar o PC, abrir</label><select id="c_abrir_ao_ligar">${[['tela_cheia','Câmeras em tela cheia'],['janela','Janela normal'],['bandeja','Escondido na bandeja']].map(([k,n])=>`<option value="${k}" ${(c.abrir_ao_ligar||'tela_cheia')===k?'selected':''}>${n}</option>`).join('')}</select>
+      <div class="full hint">Já começa a gravar sozinho. Em tela cheia, aperte Esc pra sair dela. Fechar a janela só esconde, a gravação continua. Pra sair de vez, use o ícone da bandeja.</div>`],
+  };
+  if(sec&&sections[sec]){
+    const [t,i,body]=sections[sec];
+    modal(`<div class="modal"><div class="mh"><button class="icon-btn" onclick="openSettings()">${ic('back')}</button>${ic(i)}<h2>${t}</h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+      <div class="mb"><div class="form">${body}</div></div>
+      <div class="mf"><button class="btn" onclick="openSettings()">Voltar</button><button class="btn pri" onclick="saveSettings()">Salvar</button></div></div>`);
+    if($('#c_pasta_gravacoes'))pastaInfo();
+    return;
+  }
+  modal(`<div class="modal"><div class="mh">${ic('sliders')}<h2>Ajustes</h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="mb"><div class="cats">
+      <div class="cat"><h4>${ic('film')} Mídia e gravação</h4><a onclick="openSettings('gravacao')">Gravação dos alertas</a><a onclick="openSettings('armazenamento')">Armazenamento</a></div>
+      <div class="cat"><h4>${ic('camera')} Câmeras e detecção</h4><a onclick="openCameras()">Câmeras</a><a onclick="discover()">Procurar na rede</a></div>
+      <div class="cat"><h4>${ic('user')} Inteligência</h4><a onclick="openFaces()">Rostos conhecidos</a><a onclick="openCameras()">Grade e tipos por câmera</a></div>
+      <div class="cat"><h4>${ic('bell')} Notificações</h4><a onclick="openSettings('notificacoes')">Webhook / Thoth</a></div>
+      <div class="cat"><h4>${ic('wifi')} Acesso</h4><a onclick="openSettings('acesso')">Acesso pela rede</a></div>
+      <div class="cat"><h4>${ic('server')} Sistema</h4><a onclick="openSettings('sistema')">Iniciar com o Windows</a><a onclick="openSystem()">Informações</a></div>
+    </div></div></div>`);
+}
+async function saveSettings(){
+  const v=id=>{const e=$('#c_'+id);return e?(e.type==='checkbox'?e.checked:e.value):undefined};
+  const body={};
+  ['segundos_antes','segundos_depois','clipe_minimo_segundos','clipe_maximo_segundos','dias_guardar','espaco_livre_minimo_gb','tamanho_maximo_gb','pasta_gravacoes','webhook_alerta','iniciar_com_windows','abrir_ao_ligar','atualizar_sozinho'].forEach(k=>{const x=v(k);if(x!==undefined)body[k]=x});
+  if($('#c_porta'))body.painel={porta:+v('porta'),acesso_rede:v('acesso_rede'),senha:v('senha_painel')};
+  const r=await api('/api/config',{method:'POST',body});
+  toast(r.reiniciar?'Salvo. Reabra o FTCam pra aplicar a mudança de acesso.':'Ajustes salvos','info');openSettings();
+}
+
+/* ================= câmeras ================= */
+async function openCameras(addIfEmpty){
+  const c=await api('/api/config');S.config=c;
+  if(addIfEmpty&&!c.cameras.length)return discover();
+  const st=id=>S.estado.cameras.find(x=>x.id===id)||{};
+  modal(`<div class="modal"><div class="mh">${ic('camera')}<h2>Câmeras</h2>
+     <button class="btn" onclick="discover()">${ic('search')} Procurar na rede</button>
+     <button class="btn pri" onclick="editCamera()">${ic('plus')} Adicionar</button>
+     <button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="mb"><div class="cams">${c.cameras.map(cam=>{const s=st(cam.id);return `
+      <div class="camrow">${s.online?`<img src="/api/foto/${cam.id}?t=${Date.now()}">`:`<div class="ph"></div>`}
+        <div class="info"><b><i class="dot ${s.online?'on':''}"></i> ${esc(cam.nome)}</b>
+          <small>${esc(cam.ip)} · ${cam.deteccao==='tapo'?'Detecção da Tapo':'Detecção do FTCam'}${cam.ativa?'':' · desativada'}</small>
+          ${s.erro?`<div class="err">${esc(s.erro)}</div>`:''}</div>
+        <label class="switch" title="Ativa"><input type="checkbox" ${cam.ativa?'checked':''} onchange="toggleCam('${cam.id}',this.checked)"><span></span></label>
+        <button class="btn" onclick="editCamera('${cam.id}')">${ic('edit')}</button>
+      </div>`}).join('')||'<div class="empty">Nenhuma câmera ainda. Clique em <b>Procurar na rede</b> ou <b>Adicionar</b>.</div>'}</div></div></div>`);
+}
+async function toggleCam(id,on){const c=S.config.cameras.find(x=>x.id===id);c.ativa=on;await api('/api/cameras',{method:'POST',body:c});setTimeout(refresh,500)}
+
+async function editCamera(id,preset={}){
+  if(!S.config)S.config=await api('/api/config');
+  const cam=id?S.config.cameras.find(c=>c.id===id):{nome:preset.nome||'Câmera '+(S.config.cameras.length+1),ip:preset.ip||'',porta_rtsp:554,porta_onvif:preset.porta_onvif||2020,usuario:'',senha:'',senha_nuvem_tapo:'',deteccao:'tapo',sensibilidade:50,ativa:true,stream_gravacao:'stream1',stream_leve:'stream2'};
+  window._cam=cam;
+  modal(`<div class="modal"><div class="mh">${ic('camera')}<h2>${id?'Editar câmera':'Nova câmera'}</h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+   <div class="mb"><div class="form">
+    <label>Nome</label><input id="e_nome" value="${esc(cam.nome)}">
+    <label>IP</label><input id="e_ip" value="${esc(cam.ip)}" placeholder="192.168.0.50">
+    <label>Usuário</label><input id="e_usuario" value="${esc(cam.usuario)}">
+    <label>Senha</label><input id="e_senha" type="password" autocomplete="new-password" value="${esc(cam.senha)}">
+    <div class="full hint" style="margin-top:-4px">Na Tapo: app → câmera → Configurações → Avançado → <b>Conta da câmera</b>.</div>
+    <label>Detecção</label><div class="seg" id="e_det">
+      <button data-v="tapo" class="${cam.deteccao==='tapo'?'on':''}">Da própria Tapo</button>
+      <button data-v="ftcam" class="${cam.deteccao==='ftcam'?'on':''}">Do FTCam</button></div>
+    <div class="full hint" id="e_dethint"></div>
+    <label>Gravar quando detectar</label><div class="chips" id="e_trig">${[['movimento','Qualquer movimento','camera'],['pessoa','Pessoa','user'],['veículo','Veículo','camera'],['animal','Pet/animal','paw']].map(([v,n,i])=>`<button class="chip ${(cam.disparar_com||[]).includes(v)?'on':''}" data-v="${v}">${ic(i,'style="width:14px;height:14px"')} ${n}</button>`).join('')}</div>
+    <div class="full hint" style="margin-top:-4px">Nada marcado = grava com qualquer detecção. Marque só <b>Pessoa</b> pra ignorar folha, sombra e chuva. Pessoa/veículo/pet são confirmados pela IA do FTCam (e também pelos avisos inteligentes da Tapo, se ela mandar).</div>
+    <label id="e_senslbl">Sensibilidade</label><div id="e_sensbox"><input type="range" id="e_sens" min="1" max="100" value="${cam.sensibilidade}" style="width:70%"> <b id="e_sensv">${cam.sensibilidade}</b></div>
+    <label>Inteligência (IA)</label><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+      <label style="display:flex;gap:8px;align-items:center;color:var(--txt)"><span class="switch"><input type="checkbox" id="e_ia" ${cam.ia_ativa!==false?'checked':''}><span></span></span> Confirmar com IA</label>
+      <label style="display:flex;gap:8px;align-items:center;color:var(--txt)"><span class="switch"><input type="checkbox" id="e_rostos" ${cam.reconhecer_rostos!==false?'checked':''}><span></span></span> Reconhecer rostos</label>
+      ${id?`<button class="btn" type="button" onclick="gridEditor('${id}')">${ic('grid')} Grade de detecção${(cam.grade||[]).length?' ✓':''}</button>`:''}</div>
+    <div class="full hint" style="margin-top:-4px">Com <b>Pessoa/Veículo/Pet</b> marcados (sem "Qualquer movimento"), a IA do FTCam olha a imagem quando a câmera detecta algo e só grava se confirmar. Folha, sombra e chuva ficam de fora. ${S.estado.sistema.ia?'':'<span class="err">Modelos de IA não encontrados na pasta "modelos".</span>'}</div>
+    <label>Senha da conta Tapo</label><input id="e_nuvem" type="password" autocomplete="new-password" value="${esc(cam.senha_nuvem_tapo)}" placeholder="opcional: sirene, privacidade, LED">
+    <details class="full"><summary style="cursor:pointer;color:var(--mut)">Avançado</summary><div class="form" style="margin-top:12px">
+      <label>Porta RTSP</label><input type="number" id="e_prtsp" value="${cam.porta_rtsp}">
+      <label>Porta ONVIF</label><input type="number" id="e_ponvif" value="${cam.porta_onvif}">
+      <label>Stream de gravação</label><input id="e_s1" value="${esc(cam.stream_gravacao)}">
+      <label>Stream leve</label><input id="e_s2" value="${esc(cam.stream_leve)}">
+      <div class="full hint">Tapo: stream1 = Full HD, stream2 = leve. Outras marcas podem usar caminhos diferentes.</div></div></details>
+    <div class="full" id="e_test"></div>
+   </div></div>
+   <div class="mf">${id?`<button class="btn red" style="margin-right:auto" onclick="removeCam('${id}')">${ic('trash')} Remover</button>`:''}
+     <button class="btn" onclick="testCam()" id="e_tbtn">${ic('wifi')} Testar conexão</button>
+     <button class="btn pri" onclick="saveCam()">Salvar</button></div></div>`);
+  const det=$('#e_det');
+  const upd=()=>{const v=det.querySelector('.on').dataset.v;$('#e_dethint').innerHTML=v==='tapo'?'Usa a detecção da câmera (movimento e pessoa, com a sensibilidade e as zonas que você ajustou no app Tapo). Gasta quase nada de CPU. Se não der pra conectar, o FTCam assume sozinho.':'O FTCam analisa a imagem e detecta qualquer movimento. Funciona com qualquer câmera e gasta um pouco mais de CPU.';$('#e_sensbox').style.opacity=v==='ftcam'?1:.35;$('#e_senslbl').style.opacity=v==='ftcam'?1:.35};
+  det.onclick=e=>{const b=e.target.closest('button');if(!b)return;det.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));upd()};upd();
+  $('#e_sens').oninput=e=>$('#e_sensv').textContent=e.target.value;
+  $('#e_trig').onclick=e=>{const b=e.target.closest('.chip');if(b)b.classList.toggle('on')};
+}
+function camForm(){
+  const c=window._cam;
+  return {...c,nome:$('#e_nome').value.trim()||'Câmera',ip:$('#e_ip').value.trim(),usuario:$('#e_usuario').value.trim(),senha:$('#e_senha').value,
+    deteccao:$('#e_det .on').dataset.v,sensibilidade:+$('#e_sens').value,senha_nuvem_tapo:$('#e_nuvem').value,
+    disparar_com:[...document.querySelectorAll('#e_trig .chip.on')].map(b=>b.dataset.v),
+    ia_ativa:$('#e_ia').checked,reconhecer_rostos:$('#e_rostos').checked,
+    porta_rtsp:+$('#e_prtsp').value,porta_onvif:+$('#e_ponvif').value,stream_gravacao:$('#e_s1').value.trim(),stream_leve:$('#e_s2').value.trim()};
+}
+async function testCam(){
+  const b=$('#e_tbtn');b.disabled=true;b.innerHTML='<span class="spin"></span> Testando...';
+  try{const r=await api('/api/cameras/testar',{method:'POST',body:camForm()});
+    $('#e_test').innerHTML=r.ok?`<div style="color:var(--ok)">✓ Conectou na imagem.${r.onvif===true?' Detecção da Tapo (ONVIF) disponível.':r.onvif===false?' <span style="color:var(--warn)">ONVIF não respondeu: use "Detecção do FTCam" ou confira a porta ONVIF.</span>':''}</div><img class="preview" src="data:image/jpeg;base64,${r.imagem}">`:`<div class="err">✗ ${esc(r.erro)}</div>`;
+  }catch(e){$('#e_test').innerHTML='<div class="err">Erro ao testar.</div>'}
+  b.disabled=false;b.innerHTML=ic('wifi')+' Testar conexão';
+}
+async function saveCam(){
+  const r=await api('/api/cameras',{method:'POST',body:camForm()});
+  if(!r.ok){toast(esc(r.erro||'Erro'),'');return}
+  S.config=null;toast('Câmera salva','info');openCameras();setTimeout(refresh,800);
+}
+async function removeCam(id){if(!confirm('Remover esta câmera? Os alertas gravados continuam na pasta.'))return;await api('/api/cameras/'+id,{method:'DELETE'});S.config=null;openCameras();refresh()}
+
+/* ================= descoberta ================= */
+async function discover(){
+  modal(`<div class="modal"><div class="mh">${ic('search')}<h2>Procurar câmeras na rede</h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="mb" id="discBody"><div style="display:flex;gap:10px;align-items:center"><span class="spin"></span> Procurando câmeras ONVIF e RTSP na sua rede... (uns 10 segundos)</div></div></div>`);
+  await api('/api/descobrir',{method:'POST'});
+  const poll=async()=>{
+    if(!$('#discBody'))return;
+    const r=await api('/api/descobrir');
+    if(r.rodando)return setTimeout(poll,1000);
+    $('#discBody').innerHTML=r.resultado.length?`<div class="hint">Encontrei ${r.resultado.length} aparelho(s) que parecem câmeras:</div><div class="disc-list">`+r.resultado.map(d=>`
+      <div class="camrow"><div class="ph" style="display:flex;align-items:center;justify-content:center">${ic('camera')}</div>
+        <div class="info"><b>${esc(d.nome||d.modelo||'Câmera IP')}</b><small>${esc(d.ip)} ${d.modelo?'· '+esc(d.modelo):''} ${d.onvif?'· ONVIF':''} ${d.rtsp?'· RTSP':''}</small></div>
+        ${d.ja_adicionada?'<span class="hint">já adicionada</span>':`<button class="btn pri" onclick='editCamera(null,${JSON.stringify({ip:d.ip,nome:d.nome||d.modelo||"",porta_onvif:d.porta_onvif})})'>${ic('plus')} Adicionar</button>`}
+      </div>`).join('')+'</div>':`<div class="empty">Nenhuma câmera encontrada.<br>Confira se o PC está na mesma rede da câmera, ou adicione pelo IP.</div><div style="text-align:center"><button class="btn pri" onclick="editCamera()">${ic('plus')} Adicionar pelo IP</button></div>`;
+  };poll();
+}
+
+/* ================= grade de detecção ================= */
+async function gridEditor(id){
+  if(!S.config)S.config=await api('/api/config');
+  const cam=S.config.cameras.find(c=>c.id===id);if(!cam)return;
+  let g=(cam.grade&&cam.grade.length===144)?cam.grade.slice():Array(144).fill(1);
+  modal(`<div class="modal wide"><div class="mh">${ic('grid')}<h2>Grade de detecção · ${esc(cam.nome)}</h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+   <div class="mb"><div class="hint" style="margin-bottom:10px"><b style="color:#8fb4ff">Azul = detecta e grava</b> · <b style="color:#ff8a8b">Vermelho = ignora</b>. Clique e arraste pra pintar. Marque em azul o chão onde alguém pode andar (o "pé" da pessoa tem que cair no azul).</div>
+    <div class="gridwrap"><img src="/api/foto/${id}?q=85&t=${Date.now()}" onerror="this.style.minHeight='300px'"><div class="gridov" id="gov"></div></div></div>
+   <div class="mf"><button class="btn" onclick="gridSet(1)">Marcar tudo</button><button class="btn" onclick="gridSet(0)">Limpar</button><button class="btn" onclick="gridSet(-1)">Inverter</button>
+     <span style="flex:1"></span><button class="btn pri" onclick="gridSave('${id}')">Salvar</button></div></div>`);
+  const ov=$('#gov');ov.innerHTML=g.map((v,i)=>`<div data-i="${i}" class="${v?'on':''}"></div>`).join('');
+  let paint=null;const apply=el=>{if(!el||el.dataset.i===undefined)return;g[+el.dataset.i]=paint;el.classList.toggle('on',!!paint)};
+  let last=null;
+  const cellAt=(x,y)=>{const r=ov.getBoundingClientRect();if(x<r.left||y<r.top||x>=r.right||y>=r.bottom)return null;
+    return Math.floor((y-r.top)/r.height*9)*16+Math.floor((x-r.left)/r.width*16)};
+  const paintAt=(x,y)=>{const i=cellAt(x,y);if(i===null)return;g[i]=paint;ov.children[i].classList.toggle('on',!!paint)};
+  ov.onpointerdown=e=>{const i=cellAt(e.clientX,e.clientY);if(i===null)return;paint=g[i]?0:1;paintAt(e.clientX,e.clientY);last=[e.clientX,e.clientY];ov.setPointerCapture(e.pointerId)};
+  ov.onpointermove=e=>{if(paint===null)return;const [x0,y0]=last,dx=e.clientX-x0,dy=e.clientY-y0,n=Math.max(1,Math.ceil(Math.hypot(dx,dy)/6));
+    for(let k=1;k<=n;k++)paintAt(x0+dx*k/n,y0+dy*k/n);last=[e.clientX,e.clientY]};
+  ov.onpointerup=()=>{paint=null;last=null};
+  window._grid=g;window.gridSet=v=>{for(let i=0;i<144;i++)g[i]=v<0?(g[i]?0:1):v;ov.querySelectorAll('div').forEach((d,i)=>d.classList.toggle('on',!!g[i]))};
+}
+async function gridSave(id){await api(`/api/cameras/${id}/grade`,{method:'POST',body:{grade:window._grid}});S.config=null;toast('Grade salva','info');closeModal()}
+
+/* ================= rostos e pets ================= */
+async function openFaces(tab){
+  S.faceTab=tab||S.faceTab||'pessoas';
+  const [d,pets]=await Promise.all([api('/api/rostos'),api('/api/pets')]);
+  const tabs=[['pessoas',`Pessoas (${d.conhecidos.length})`],['vistos',`Vistos sem nome (${d.desconhecidos.length})`],['pets',`Pets (${pets.length})`]];
+  let body='';
+  if(S.faceTab==='pessoas'){
+    body=`<div class="hint" style="margin-bottom:10px">Clique numa pessoa pra ver e adicionar fotos. Cada foto colorida ganha uma cópia em preto e branco automática, pra reconhecer também de noite.</div>
+    <div class="faces">${d.conhecidos.map(k=>`<div class="face" style="cursor:pointer" onclick="openPerson('${esc(k.nome)}')">${k.foto?`<img src="/rosto/conhecido/${encodeURI(k.foto)}">`:'<div style="aspect-ratio:1;background:#000;border-radius:8px"></div>'}
+      <b style="display:block;margin-top:6px">${esc(k.nome)}</b><small style="color:var(--mut)">${k.coloridas} colorida(s) · ${k.pb} p&b</small></div>`).join('')}
+      <label class="face" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--mut);min-height:150px">${ic('plus','style="width:28px;height:28px"')}Nova pessoa<input type="file" accept="image/*" style="display:none" onchange="facePhoto(this)"></label></div>`;
+  }else if(S.faceTab==='vistos'){
+    body=`<div class="hint" style="margin-bottom:10px">Rostos que a câmera viu. Dê um nome pra ensinar o FTCam. Clique nas fotos pra selecionar várias e nomear de uma vez.</div>
+    <div class="faces">${d.desconhecidos.map(u=>`<div class="face" data-id="${u.id}"><img src="/rosto/desconhecido/${u.id}" onclick="this.parentNode.classList.toggle('sel')" style="cursor:pointer">
+      <small style="color:var(--mut);display:block;margin-top:4px">${esc(u.camera)} · ${new Date(u.quando*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small>
+      <input placeholder="Nome" list="faceNames" onkeydown="if(event.key==='Enter')faceName('${u.id}',this.value)">
+      <div class="r"><button class="btn pri" onclick="faceName('${u.id}',this.closest('.face').querySelector('input').value)">Salvar</button><button class="btn" onclick="faceDiscard('${u.id}')">${ic('trash')}</button></div></div>`).join('')||'<div class="hint">Nenhum rosto novo. Eles aparecem aqui quando a câmera vê uma pessoa de frente.</div>'}</div>
+    <datalist id="faceNames">${d.conhecidos.map(k=>`<option value="${esc(k.nome)}">`).join('')}</datalist>`;
+  }else{
+    body=`<div class="hint" style="margin-bottom:10px">O pet é reconhecido pela <b>aparência</b> (cor e padrão do pelo). Mande 2 ou 3 fotos dele de corpo inteiro, de lados diferentes. A versão preto e branco é criada sozinha.</div>
+    <div class="faces">${pets.map(pt=>`<div class="face" style="cursor:pointer" onclick="openPet('${esc(pt.nome)}')"><img src="/pet/${encodeURIComponent(pt.nome)}/${encodeURIComponent(pt.amostras[0])}" style="object-fit:cover">
+      <b style="display:block;margin-top:6px">${ic('paw','style="width:13px;height:13px"')} ${esc(pt.nome)}</b><small style="color:var(--mut)">${esc(pt.tipo||'')} · ${pt.amostras.length} foto(s)</small></div>`).join('')}
+      <label class="face" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--mut);min-height:150px">${ic('plus','style="width:28px;height:28px"')}Novo pet<input type="file" accept="image/*" style="display:none" onchange="petPhoto(this)"></label></div>`;
+  }
+  modal(`<div class="modal wide"><div class="mh">${ic('user')}<h2>Rostos e pets</h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+   <div class="mb"><div class="seg" style="margin-bottom:14px">${tabs.map(([k,n])=>`<button class="${S.faceTab===k?'on':''}" onclick="openFaces('${k}')">${n}</button>`).join('')}</div>${body}</div></div>`);
+}
+async function openPerson(nome){
+  const smp=await api('/api/rostos/pessoa/'+encodeURIComponent(nome));
+  const grp=(t,list)=>`<h3 style="margin:14px 0 8px;font-size:14px;color:var(--mut)">${t} (${list.length})</h3><div class="faces">${list.map(x=>`<div class="face"><img src="/rosto/conhecido/${encodeURIComponent(nome)}/${encodeURIComponent(x.f)}">
+      <div class="r"><button class="btn" onclick="sampleDel('${esc(nome)}','${x.f}')">${ic('trash')} Apagar</button></div></div>`).join('')||'<div class="hint">Nenhuma.</div>'}</div>`;
+  modal(`<div class="modal wide"><div class="mh"><button class="icon-btn" onclick="openFaces('pessoas')">${ic('back')}</button>${ic('user')}<h2>${esc(nome)}</h2>
+     <label class="btn" style="cursor:pointer">${ic('photo')} Adicionar foto<input type="file" accept="image/*" style="display:none" onchange="facePhoto(this,'${esc(nome)}')"></label>
+     <button class="btn red" onclick="faceDel('${esc(nome)}')">${ic('trash')}</button><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+   <div class="mb"><div class="hint">Quanto mais fotos (de frente, de lado, com e sem óculos, de dia e de noite), melhor ele reconhece.</div>
+    ${grp('Coloridas',smp.filter(x=>!x.pb))}${grp('Preto e branco (visão noturna)',smp.filter(x=>x.pb))}</div></div>`);
+}
+async function sampleDel(nome,f){await api(`/api/rostos/pessoa/${encodeURIComponent(nome)}/${encodeURIComponent(f)}`,{method:'DELETE'});openPerson(nome)}
+async function faceName(id,nome){if(!nome.trim())return toast('Digite um nome','');
+  const sel=[...document.querySelectorAll('.face.sel')].map(f=>f.dataset.id);const ids=sel.includes(id)?sel:[id];
+  await api('/api/rostos/cadastrar',{method:'POST',body:{ids,nome}});toast(`Cadastrado: ${esc(nome)}`,'info');openFaces('vistos')}
+async function faceDiscard(id){await api('/api/rostos/desconhecido/'+id,{method:'DELETE'});document.querySelector(`.face[data-id="${id}"]`)?.remove()}
+async function faceDel(nome){if(!confirm(`Remover ${nome} e todas as fotos?`))return;await api('/api/rostos/pessoa/'+encodeURIComponent(nome),{method:'DELETE'});openFaces('pessoas')}
+function readImg(inp){return new Promise(res=>{const f=inp.files[0];if(!f)return res(null);const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(f)})}
+async function facePhoto(inp,nome){const img=await readImg(inp);if(!img)return;nome=nome||prompt('Nome da pessoa nesta foto:');if(!nome)return;
+  const x=await api('/api/rostos/foto',{method:'POST',body:{nome,imagem:img}});toast(x.ok?'Foto adicionada (+ versão preto e branco)':esc(x.erro||'Erro'),x.ok?'info':'');x.ok?openPerson(nome):null}
+async function petPhoto(inp,nome){const img=await readImg(inp);if(!img)return;nome=nome||prompt('Nome do pet:');if(!nome)return;
+  const x=await api('/api/pets/foto',{method:'POST',body:{nome,imagem:img}});toast(x.ok?(x.aviso?esc(x.aviso):'Foto do pet adicionada'):esc(x.erro||'Erro'),x.ok?'info':'');if(x.ok)openPet(nome)}
+async function openPet(nome){
+  const pt=(await api('/api/pets')).find(p=>p.nome===nome);if(!pt)return openFaces('pets');
+  modal(`<div class="modal wide"><div class="mh"><button class="icon-btn" onclick="openFaces('pets')">${ic('back')}</button>${ic('paw')}<h2>${esc(nome)} <small style="color:var(--mut);font-weight:400">${esc(pt.tipo||'')}</small></h2>
+     <label class="btn" style="cursor:pointer">${ic('photo')} Adicionar foto<input type="file" accept="image/*" style="display:none" onchange="petPhoto(this,'${esc(nome)}')"></label>
+     <button class="btn red" onclick="petDel('${esc(nome)}')">${ic('trash')}</button><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+   <div class="mb"><div class="faces">${pt.amostras.map(f=>`<div class="face"><img src="/pet/${encodeURIComponent(nome)}/${encodeURIComponent(f)}" style="object-fit:contain">
+     <small style="color:var(--mut)">${f.includes('_pb')?'preto e branco':'colorida'}</small>
+     <div class="r"><button class="btn" onclick="petSampleDel('${esc(nome)}','${f}')">${ic('trash')}</button></div></div>`).join('')}</div></div></div>`);
+}
+async function petSampleDel(nome,f){await api(`/api/pets/${encodeURIComponent(nome)}/${encodeURIComponent(f)}`,{method:'DELETE'});openPet(nome)}
+async function petDel(nome){if(!confirm(`Remover ${nome}?`))return;await api('/api/pets/'+encodeURIComponent(nome),{method:'DELETE'});openFaces('pets')}
+
+/* ================= controles da Tapo ================= */
+async function tapoPanel(id){
+  modal(`<div class="modal small"><div class="mh">${ic('siren')}<h2>Controles da Tapo</h2><button class="icon-btn" onclick="closeModal()">${ic('x')}</button></div>
+    <div class="mb" id="tpBody"><span class="spin"></span> Conectando na câmera...</div></div>`);
+  const s=await api(`/api/cameras/${id}/tapo`);
+  if(!s.ok){$('#tpBody').innerHTML=`<div class="err">${esc(s.erro)}</div><div class="hint" style="margin-top:8px">Os controles usam a senha da sua conta Tapo (a do app). Preencha em Editar câmera.</div>`;return}
+  const act=async(acao,valor)=>{const r=await api(`/api/cameras/${id}/tapo`,{method:'POST',body:{acao,valor}});toast(r.ok?'Feito':'Erro: '+esc(r.erro),r.ok?'info':'')};
+  window._tapo=act;
+  $('#tpBody').innerHTML=`<div class="hint" style="margin-bottom:12px">${esc(s.modelo)} · firmware ${esc(s.firmware)}</div>
+    <div class="form">
+      <label>Sirene</label><div class="tapo-ctl"><button class="btn red" onclick="_tapo('sirene',1)">${ic('siren')} Tocar</button><button class="btn" onclick="_tapo('sirene',0)">Parar</button></div>
+      <label>Modo privacidade</label><label class="switch" style="justify-self:start"><input type="checkbox" ${s.privacidade?'checked':''} onchange="_tapo('privacidade',this.checked)"><span></span></label>
+      <label>LED de status</label><label class="switch" style="justify-self:start"><input type="checkbox" ${s.led?'checked':''} onchange="_tapo('led',this.checked)"><span></span></label>
+      <label>Visão noturna</label><div class="seg" id="tpNight">${[['auto','Auto'],['on','Sempre'],['off','Desligada']].map(([v,n])=>`<button class="${s.noturno===v?'on':''}" onclick="this.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===this));_tapo('noturno','${v}')">${n}</button>`).join('')}</div>
+    </div><div class="hint" style="margin-top:14px">Com o modo privacidade ligado, a câmera para de mandar imagem e o FTCam não grava.</div>`;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+plugins { id 'com.android.application' }
+
+// a versão vem do programa do PC (pc/core.py), assim tudo sai com o mesmo número
+def appVersion() {
+    def m = (file('../../pc/core.py').text =~ /VERSAO = "([0-9.]+)"/)
+    return m.find() ? m.group(1) : '1.0.0'
+}
+def appVersionCode() {
+    def p = appVersion().tokenize('.').collect { it as int }
+    return p[0] * 10000 + p[1] * 100 + p[2]
+}
+
+android {
+    namespace 'br.com.facincanitech.ftcamtv'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'br.com.facincanitech.ftcamtv'
+        minSdk 29          // Android 10
+        targetSdk 34
+        versionCode appVersionCode()
+        versionName appVersion()
+    }
+
+    // a chave que assina o APK fica nos Secrets do GitHub (nunca no código).
+    // Sem ela (ex.: compilando em casa), assina com a chave de teste do Android.
+    def ks = file('release.jks')
+    signingConfigs {
+        if (ks.exists()) {
+            fixa {
+                storeFile ks
+                storePassword System.getenv('KEY_PASS')
+                keyAlias 'ftcamtv'
+                keyPassword System.getenv('KEY_PASS')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig ks.exists() ? signingConfigs.fixa : signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+}

@@ -1,0 +1,243 @@
+package br.com.facincanitech.ftcamtv;
+
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.UiModeManager;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.webkit.HttpAuthHandler;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+
+/**
+ * Repete a tela do FTCam que roda no notebook (igual abrir no navegador): o notebook continua
+ * sendo a estação principal, o app só assiste ao vivo, liga o som e vê as gravações.
+ *
+ * Na TV box (controle remoto):
+ *   setas       escolhem a câmera; ← na primeira câmera abre as gravações
+ *   OK          tela cheia com som / liga e desliga o som / assiste a gravação / pausa
+ *   Voltar      volta (vídeo → lista → câmeras); na grade, 2x pra sair
+ *   Menu / ⚙    ajustes do app (endereço do notebook, abrir ao ligar)
+ * No celular/tablet abre o layout normal de toque do FTCam.
+ */
+public class MainActivity extends Activity {
+
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private Store store;
+    private WebView web;
+    private TextView aviso;
+    private boolean tv;
+    private int falhas = 0;
+    private boolean procurando = false;
+    private long ultimoVoltar = 0;
+    private String carregado = "";
+
+    private final Runnable recarregar = this::carregar;
+
+    /** vigia: se a página não estiver viva, recarrega */
+    private final Runnable vigia = new Runnable() {
+        @Override public void run() {
+            if (web != null && aviso.getVisibility() != View.VISIBLE) {
+                web.evaluateJavascript("(typeof S!=='undefined'&&!!S.estado)?'ok':'no'", r -> {
+                    if (r == null || !r.contains("ok")) carregar();
+                });
+            }
+            ui.postDelayed(this, 30000);
+        }
+    };
+
+    @SuppressLint("SetJavaScriptEnabled")
+    @Override
+    protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        store = new Store(this);
+        tv = ehTv();
+
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.BLACK);
+        web = new WebView(this);
+        web.setBackgroundColor(Color.BLACK);
+        WebSettings s = web.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);                 // lembra grade/volume como no navegador
+        s.setMediaPlaybackRequiresUserGesture(false); // som e vídeo tocam sem precisar tocar na tela
+        s.setLoadWithOverviewMode(true);
+        s.setUseWideViewPort(true);
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        web.setWebChromeClient(new WebChromeClient());
+        web.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView v, String url) {
+                if (!url.startsWith("about:")) {
+                    aviso.setVisibility(View.GONE);
+                    falhas = 0;
+                }
+            }
+            @Override public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError err) {
+                if (req.isForMainFrame()) falhou("Não achei o FTCam em " + store.endereco());
+            }
+            @Override public void onReceivedHttpAuthRequest(WebView v, HttpAuthHandler h, String host, String realm) {
+                if (!store.senha().isEmpty() && falhas < 2) {
+                    falhas++;
+                    h.proceed("ftcam", store.senha());
+                } else {
+                    h.cancel();
+                    falhou("O FTCam pediu senha: coloque a senha do painel nos ajustes");
+                }
+            }
+        });
+        root.addView(web, new FrameLayout.LayoutParams(-1, -1));
+
+        aviso = new TextView(this);
+        aviso.setTextColor(Color.WHITE);
+        aviso.setTextSize(20);
+        aviso.setGravity(Gravity.CENTER);
+        aviso.setBackgroundColor(0xEE0B1118);
+        aviso.setPadding(60, 60, 60, 60);
+        // no celular: tocar no aviso abre os ajustes
+        aviso.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+        root.addView(aviso, new FrameLayout.LayoutParams(-1, -1));
+        setContentView(root);
+    }
+
+    /** TV box: modo TV do aparelho ou sem tela de toque. */
+    private boolean ehTv() {
+        UiModeManager um = (UiModeManager) getSystemService(UI_MODE_SERVICE);
+        if (um != null && um.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) return true;
+        return !getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (tv) hideSystemBars();
+        if (store.endereco().isEmpty()) {
+            startActivity(new Intent(this, SettingsActivity.class));
+            mostrar(tv ? "Aperte Menu pra colocar o endereço do FTCam" : "Toque aqui pra colocar o endereço do FTCam");
+            return;
+        }
+        if (!store.url(tv).equals(carregado)) carregar();
+        ui.removeCallbacks(vigia);
+        ui.postDelayed(vigia, 30000);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        ui.removeCallbacks(vigia);
+        ui.removeCallbacks(recarregar);
+        // para o vídeo e o som quando sai do app (economiza a TV box e a rede)
+        carregado = "";
+        web.loadUrl("about:blank");
+    }
+
+    private void carregar() {
+        ui.removeCallbacks(recarregar);
+        carregado = store.url(tv);
+        if (carregado.isEmpty()) return;
+        mostrar("Conectando no FTCam…\n" + store.endereco());
+        web.loadUrl(carregado);
+        web.requestFocus();
+    }
+
+    /** Não conectou: tenta de novo pra sempre; depois de algumas falhas, procura o notebook na rede. */
+    private void falhou(String msg) {
+        falhas++;
+        mostrar(msg + "\n\nTentando de novo…");
+        ui.removeCallbacks(recarregar);
+        ui.postDelayed(recarregar, 5000);
+        if (falhas >= 3 && !procurando) {
+            procurando = true;
+            mostrar(msg + "\n\nProcurando o FTCam na rede…");
+            new Thread(() -> {
+                String achou = Finder.find(this);
+                ui.post(() -> {
+                    procurando = false;
+                    if (achou != null && !achou.equals(store.endereco())) {
+                        store.setEndereco(achou);
+                        Toast.makeText(this, "Achei o FTCam em " + achou, Toast.LENGTH_LONG).show();
+                        carregar();
+                    }
+                });
+            }).start();
+        }
+    }
+
+    private void mostrar(String msg) {
+        aviso.setText(msg);
+        aviso.setVisibility(View.VISIBLE);
+    }
+
+    private void sairComDoisVoltar() {
+        long now = System.currentTimeMillis();
+        if (now - ultimoVoltar < 2500) finish();
+        else {
+            ultimoVoltar = now;
+            Toast.makeText(this, "Aperte Voltar de novo pra sair", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        int code = e.getKeyCode();
+        if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) {
+            switch (code) {
+                case KeyEvent.KEYCODE_MENU:
+                case KeyEvent.KEYCODE_SETTINGS:
+                case KeyEvent.KEYCODE_INFO:
+                    startActivity(new Intent(this, SettingsActivity.class));
+                    return true;
+                case KeyEvent.KEYCODE_BACK:
+                    if (aviso.getVisibility() == View.VISIBLE) { sairComDoisVoltar(); return true; }
+                    if (tv) {
+                        // a página volta sozinha (vídeo → lista → câmeras); se já está na grade, sai
+                        web.evaluateJavascript("window.tvBack?String(window.tvBack()):'false'", r -> {
+                            if (r == null || !r.contains("true")) sairComDoisVoltar();
+                        });
+                    } else if (web.canGoBack()) {
+                        web.goBack();   // no celular o FTCam já fecha telas pelo "voltar"
+                    } else {
+                        sairComDoisVoltar();
+                    }
+                    return true;
+            }
+        }
+        if (code == KeyEvent.KEYCODE_BACK) return true;
+        // o OK do controle vira Enter pra página
+        if (tv && (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            KeyEvent enter = new KeyEvent(e.getDownTime(), e.getEventTime(), e.getAction(),
+                    KeyEvent.KEYCODE_ENTER, e.getRepeatCount(), e.getMetaState());
+            return web.dispatchKeyEvent(enter);
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && tv) hideSystemBars();
+    }
+
+    private void hideSystemBars() {
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+}

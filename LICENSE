@@ -1,0 +1,38 @@
+LICENÇA DE USO — FTCam
+Copyright (c) 2026 FacincaniTech. Todos os direitos reservados.
+
+O FTCam (programa para computador, aplicativo para Android e este código-fonte) é
+distribuído de graça, com o código aberto para consulta, nas condições abaixo.
+
+1. O QUE É PERMITIDO
+   a) Baixar, instalar e usar o FTCam de graça, em quantos computadores, TV boxes e
+      celulares quiser, para uso pessoal, doméstico ou no próprio negócio.
+   b) Ler e estudar o código-fonte.
+   c) Indicar o FTCam para outras pessoas, desde que pelo link oficial:
+      https://github.com/facincanitech/ftcam
+
+2. O QUE NÃO É PERMITIDO
+   a) Modificar, adaptar, traduzir ou criar obras derivadas do FTCam ou de partes dele.
+   b) Distribuir, republicar ou hospedar cópias do FTCam, alteradas ou não, fora do link
+      oficial.
+   c) Vender, alugar, sublicenciar ou cobrar pelo FTCam, ou incluí-lo em produto ou
+      serviço pago.
+   d) Remover ou alterar avisos de autoria, desta licença ou a marca FacincaniTech.
+
+3. SEUS DADOS
+   O FTCam funciona na sua rede local. Câmeras, senhas, rostos cadastrados e gravações
+   ficam somente no seu equipamento. O programa só se conecta à internet para conferir e
+   baixar atualizações no link oficial e para o que você mesmo configurar (ex.: avisos).
+
+4. SEM GARANTIA
+   O FTCam é fornecido "como está", sem garantia de qualquer tipo. A FacincaniTech não
+   se responsabiliza por falhas de gravação, perda de dados, danos ou prejuízos de
+   qualquer natureza decorrentes do uso. O FTCam não substitui sistemas de segurança
+   profissionais.
+
+5. Usar o FTCam significa concordar com esta licença. Para pedir permissões além destas
+   (por exemplo, uso comercial em produto seu), fale com a FacincaniTech pelo GitHub.
+
+Componentes de terceiros (OpenCV, FFmpeg, Flask, pywebview e os modelos de IA do
+OpenCV Zoo) continuam sob as licenças dos seus autores e são baixados das fontes
+oficiais durante a instalação.
