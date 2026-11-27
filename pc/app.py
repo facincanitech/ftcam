@@ -27,6 +27,7 @@ def main():
     ap.add_argument("--sem-janela", action="store_true")
     ap.add_argument("--esperar", action="store_true", help="reinício da atualização: espera o FTCam antigo fechar")
     ap.add_argument("--bandeja", action="store_true", help="abre escondido na bandeja")
+    ap.add_argument("--atualizado", action="store_true", help="reinício após atualizar: volta aberto e maximizado")
     args = ap.parse_args()
 
     cfg = Config()
@@ -93,12 +94,30 @@ def main():
     modo = c.get("abrir_ao_ligar", "tela_cheia") if (args.inicio or args.minimizado) else "janela"
     if args.bandeja:
         modo = "bandeja"
+    if args.atualizado:   # acabou de atualizar: volta visível, pra pessoa ver que voltou
+        modo = "janela"
     cheia = modo == "tela_cheia"
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FacincaniTech.FTCam")
+        except Exception:
+            pass
     window = webview.create_window(
         "FTCam", url + ("?cheia=1" if cheia else ""), width=1400, height=860, min_size=(960, 600),
         background_color="#0b1118", hidden=modo == "bandeja", fullscreen=cheia,
     )
     web.WIN.update(w=window, cheia=cheia)
+
+    if args.atualizado:   # abre maximizado depois de atualizar
+        def _maxi():
+            time.sleep(1.5)
+            try:
+                window.show()
+                window.maximize()
+            except Exception:
+                pass
+        threading.Thread(target=_maxi, daemon=True).start()
 
     def on_closing():
         if state["sair"] or tray is None:
@@ -112,6 +131,16 @@ def main():
         return False
 
     window.events.closing += on_closing
+
+    def on_shown():   # troca o icone da janela/taskbar (senao fica o do Python)
+        ico = RES_DIR / "icon.ico"
+        try:
+            from System.Drawing import Icon  # backend EdgeChromium do pywebview (pythonnet)
+            window.native.Icon = Icon(str(ico))
+        except Exception:
+            pass
+
+    window.events.shown += on_shown
 
     tray = _make_tray(window, state, mgr, vis)
 

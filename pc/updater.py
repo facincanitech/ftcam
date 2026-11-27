@@ -145,7 +145,7 @@ def run_now(cfg, mgr, restart_args, force=False):
         STATE["erro"] = str(e)
         LOG.info(f"atualização falhou: {e}")
         return "A atualização falhou; continua na versão atual"
-    threading.Timer(1.5, restart, args=(mgr, restart_args())).start()  # deixa a tela receber a resposta
+    threading.Timer(1.5, restart, args=(mgr, ["--atualizado"])).start()  # volta aberto e maximizado
     return f"Atualizando pra {nova}… o FTCam reinicia sozinho"
 
 
