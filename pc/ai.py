@@ -90,6 +90,22 @@ class Brain:
                 LOG.info(f"IA indisponível: {e}")
         return self.loaded
 
+    def force_cpu(self):
+        """A placa de vídeo (OpenCL) travou e passou a devolver nada sem dar erro:
+        recarrega a IA no processador, que é mais lento mas não trava assim."""
+        with self.lock:
+            try:
+                y = model_path("object_detection_yolox_2022nov.onnx")
+                self.obj_net = cv2.dnn.readNet(y)
+                self.obj_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+                self.obj_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+                self.device = "processador (recuperado)"
+                LOG.info("IA travou na placa de vídeo; voltei pro processador (mais estável)")
+                return True
+            except Exception as e:
+                LOG.info(f"não consegui recarregar a IA no processador: {e}")
+                return False
+
     def _pick_device(self):
         """Testa a IA no processador e na placa de vídeo (OpenCL) e fica com a mais rápida."""
         test = np.random.randint(0, 255, (360, 640, 3), np.uint8)
@@ -164,6 +180,7 @@ class Brain:
         scores = dets[:, 4:5] * dets[:, 5:]
         cls = scores.argmax(1)
         sc = scores[np.arange(len(cls)), cls]
+        self.last_raw = int((sc > conf).sum())  # quantas detecções de QUALQUER classe (saúde da IA)
         keep = sc > conf
         if not keep.any():
             return []

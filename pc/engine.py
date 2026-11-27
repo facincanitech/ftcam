@@ -967,6 +967,16 @@ class CameraWorker:
                 LOG.info(f"[{self.cam['nome']}] IA falhou: {e}")
                 self.stop_ev.wait(5)
                 continue
+            # vigia da placa de vídeo: se o OpenCL travar, ele devolve ZERO de tudo sem dar erro.
+            # numa cena com movimento quase sempre há algum objeto (carro, pessoa, planta...).
+            # muitas análises seguidas vendo NADA de nada = placa travou -> recarrega no processador.
+            if collecting and getattr(brain, "last_raw", 1) == 0:
+                self._ai_zero = getattr(self, "_ai_zero", 0) + 1
+                if self._ai_zero >= 25 and "processador" not in (brain.device or ""):
+                    brain.force_cpu()
+                    self._ai_zero = 0
+            elif getattr(brain, "last_raw", 1) != 0:
+                self._ai_zero = 0
             grade = self.cam.get("grade")
             objs = [o for o in objs if o["conf"] >= MIN_CONF_LABEL.get(o["label"], MIN_CONF.get(o["tipo"], 0.5))
                     and ai.in_grid(o["box"], grade, w, h)]
