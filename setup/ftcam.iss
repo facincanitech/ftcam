@@ -31,6 +31,8 @@ Name: "pt"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 pt.WelcomeLabel2=Isto vai instalar o FTCam {#Versao}, o DVR grátis pras suas câmeras IP.%n%nDepois de clicar em Instalar, abre uma janela preta que baixa o que faltar (Python, ffmpeg e a IA) e faz 3 perguntas rápidas. Precisa de internet.
 pt.ReadyLabel1=Pronto pra instalar o FTCam.
 pt.FinishedHeadingLabel=FTCam instalado
+pt.FinishedLabelNoIcons=O FTCam foi instalado. Abra pelo atalho FTCam.%n%nAchou um bug ou quer sugerir algo novo? Fale comigo:%nWhatsApp: (17) 99631-6439%nEmail: facincanitech@gmail.com
+pt.FinishedLabel=O FTCam foi instalado. Abra pelo atalho FTCam.%n%nAchou um bug ou quer sugerir algo novo? Fale comigo:%nWhatsApp: (17) 99631-6439%nEmail: facincanitech@gmail.com
 
 [Files]
 Source: "..\pc\*"; DestDir: "{tmp}\FTCam"; Flags: recursesubdirs createallsubdirs ignoreversion; Excludes: "__pycache__\*,dados\*,gravacoes\*,modelos\*,ffmpeg\*"

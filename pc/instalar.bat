@@ -122,6 +122,10 @@ echo   Abra pelo atalho "FTCam" na area de trabalho.
 echo   Se o Windows ainda perguntar sobre o Firewall, clique em PERMITIR.
 echo  ==========================================
 echo.
+echo.
+echo   Achou um bug ou quer sugerir algo novo?
+echo   WhatsApp: (17) 99631-6439    Email: facincanitech@gmail.com
+echo.
 choice /c SN /m " Abrir o FTCam agora"
 if not errorlevel 2 start "" "%PYW%" "%DEST%\app.py"
 exit /b 0
