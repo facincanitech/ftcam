@@ -41,6 +41,7 @@ def main():
             if port_free(port, host):
                 break
             time.sleep(1)
+        time.sleep(2.5)  # folga pro WebView2 do antigo soltar a pasta dados/webview (senão a janela nova não abre)
 
     if not port_free(port, host):
         # já tem um FTCam aberto: só mostra a janela dele
@@ -144,7 +145,25 @@ def main():
 
     tray = _make_tray(window, state, mgr, vis)
 
-    webview.start(private_mode=False, storage_path=str(DATA_DIR / "webview"))
+    def _abrir_janela():
+        webview.start(private_mode=False, storage_path=str(DATA_DIR / "webview"))
+
+    try:
+        _abrir_janela()
+    except Exception as e:
+        LOG.info(f"a janela não abriu ({e.__class__.__name__}); tentando de novo em 3s")
+        time.sleep(3)
+        try:
+            _abrir_janela()
+        except Exception as e2:
+            LOG.info(f"a janela falhou 2x ({e2.__class__.__name__}); abro no navegador pra não ficar sem nada")
+            import webbrowser
+            webbrowser.open(url)
+            try:
+                while True:
+                    time.sleep(3600)
+            except KeyboardInterrupt:
+                pass
     state["sair"] = True
     if tray:
         tray.stop()
